@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 10px; width: 300px; margin: 0; }
+    h3 { margin: 0 0 10px 0; color: #00803e; font-size: 15px; }
+    .site-info { font-size: 11px; color: #888; margin: 0 0 10px; word-break: break-all; }
+    .btn-group { display: flex; flex-direction: column; gap: 6px; }
+    button {
+      border: none; padding: 8px; border-radius: 4px;
+      cursor: pointer; width: 100%; font-size: 13px;
+      transition: background 0.2s;
+    }
+    #recordBtn { background: #00803e; color: white; }
+    #recordBtn:hover { background: #286e3e; }
+    #fillBtn { background: #2196F3; color: white; }
+    #fillBtn:hover { background: #1976D2; }
+    .clear-row { display: flex; gap: 6px; margin-top: 8px; }
+    .clear-row button { flex: 1; }
+    #clearBtn { background: #f44336; color: white; }
+    #clearBtn:hover { background: #d32f2f; }
+    #clearAllBtn { background: #ff9800; color: white; }
+    #clearAllBtn:hover { background: #f57c00; }
+    .status { font-size: 12px; color: #666; margin-top: 8px; text-align: center; min-height: 16px; }
+    .status span { font-weight: bold; }
+    .status .warn { color: #f44336; }
+
+    /* Field editor */
+    .field-list {
+      margin-top: 10px;
+      max-height: 200px;
+      overflow-y: auto;
+      border-top: 1px solid #eee;
+      padding-top: 8px;
+    }
+    .field-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      padding: 3px 0;
+      border-bottom: 1px solid #f5f5f5;
+    }
+    .field-row:last-child { border-bottom: none; }
+    .field-label {
+      flex: 0 0 auto;
+      color: #555;
+      min-width: 60px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100px;
+    }
+    .field-value {
+      flex: 1;
+      min-width: 0;
+      background: #fafafa;
+      border: 1px solid transparent;
+      border-radius: 2px;
+      padding: 2px 4px;
+      cursor: text;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .field-value:focus {
+      border-color: #2196F3;
+      outline: none;
+      white-space: normal;
+      overflow: auto;
+      background: white;
+    }
+    .field-type {
+      flex: 0 0 auto;
+      color: #aaa;
+      font-size: 10px;
+      min-width: 36px;
+      text-align: center;
+    }
+    .field-del {
+      flex: 0 0 auto;
+      background: none;
+      border: none;
+      color: #ccc;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0 2px;
+      width: auto;
+      line-height: 1;
+    }
+    .field-del:hover { color: #f44336; }
+    .empty-msg { font-size: 11px; color: #aaa; text-align: center; padding: 8px 0; }
+  </style>
+</head>
+<body>
+  <h3>Snappy Form Filler</h3>
+  <div class="site-info" id="siteInfo">-</div>
+  <div class="btn-group">
+    <button id="recordBtn">Record</button>
+    <button id="fillBtn">Fill</button>
+  </div>
+  <div class="clear-row">
+    <button id="clearBtn">Clear Site</button>
+    <button id="clearAllBtn">Clear All</button>
+  </div>
+  <div class="status" id="statusBar"></div>
+  <div class="field-list" id="fieldList"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

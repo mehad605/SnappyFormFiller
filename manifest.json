@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Snappy Form Filler",
+  "version": "2.0",
+  "description": "Record and replay form data across any website. Per-site profiles with framework-aware filling.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
