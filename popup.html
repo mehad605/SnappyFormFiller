@@ -17,10 +17,18 @@
     #fillBtn:hover { background: #1976D2; }
     .clear-row { display: flex; gap: 6px; margin-top: 8px; }
     .clear-row button { flex: 1; }
+    #clearBtn, #clearAllBtn { font-size: 11px; padding: 6px; }
     #clearBtn { background: #f44336; color: white; }
     #clearBtn:hover { background: #d32f2f; }
     #clearAllBtn { background: #ff9800; color: white; }
     #clearAllBtn:hover { background: #f57c00; }
+    .io-row { display: flex; gap: 6px; margin-top: 8px; }
+    .io-row button { flex: 1; font-size: 12px; padding: 6px; }
+    #exportBtn { background: #607d8b; color: white; }
+    #exportBtn:hover { background: #455a64; }
+    #importBtn { background: #9c27b0; color: white; }
+    #importBtn:hover { background: #7b1fa2; }
+    .hidden { display: none; }
     .status { font-size: 12px; color: #666; margin-top: 8px; text-align: center; min-height: 16px; }
     .status span { font-weight: bold; }
     .status .warn { color: #f44336; }
@@ -103,6 +111,11 @@
     <button id="clearBtn">Clear Site</button>
     <button id="clearAllBtn">Clear All</button>
   </div>
+  <div class="io-row">
+    <button id="exportBtn">Export</button>
+    <button id="importBtn">Import</button>
+  </div>
+  <input type="file" id="importFile" class="hidden" accept=".json">
   <div class="status" id="statusBar"></div>
   <div class="field-list" id="fieldList"></div>
   <script src="popup.js"></script>

@@ -3,6 +3,9 @@ document.addEventListener('DOMContentLoaded', function () {
   const fillBtn = document.getElementById('fillBtn');
   const clearBtn = document.getElementById('clearBtn');
   const clearAllBtn = document.getElementById('clearAllBtn');
+  const exportBtn = document.getElementById('exportBtn');
+  const importBtn = document.getElementById('importBtn');
+  const importFile = document.getElementById('importFile');
   const statusBar = document.getElementById('statusBar');
   const siteInfo = document.getElementById('siteInfo');
   const fieldList = document.getElementById('fieldList');
@@ -195,6 +198,57 @@ document.addEventListener('DOMContentLoaded', function () {
       setStatus('All data cleared');
       renderFields([]);
     });
+  });
+
+  exportBtn.addEventListener('click', function () {
+    chrome.storage.local.get(['profiles'], function (result) {
+      const profiles = result.profiles || {};
+      if (Object.keys(profiles).length === 0) { setStatus('Nothing to export', true); return; }
+      const blob = new Blob([JSON.stringify(profiles, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'snappy-form-filler-' + new Date().toISOString().slice(0, 10) + '.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatus('Exported!');
+    });
+  });
+
+  importBtn.addEventListener('click', function () { importFile.click(); });
+
+  importFile.addEventListener('change', function () {
+    const file = importFile.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      try {
+        const imported = JSON.parse(e.target.result);
+        if (!imported || typeof imported !== 'object' || Array.isArray(imported)) {
+          setStatus('Invalid format', true); return;
+        }
+        // Validate each origin entry is an array of field objects
+        for (const [origin, fields] of Object.entries(imported)) {
+          if (!Array.isArray(fields)) throw new Error(origin + ' is not an array');
+          fields.forEach(function (f, i) {
+            if (!f || typeof f !== 'object') throw new Error(origin + '[' + i + '] is invalid');
+          });
+        }
+        chrome.storage.local.get(['profiles'], function (result) {
+          const existing = result.profiles || {};
+          const mode = confirm('Merge with existing data?\n\nOK = merge (adds new sites, overwrites existing)\nCancel = replace all');
+          const merged = mode ? { ...existing, ...imported } : imported;
+          chrome.storage.local.set({ profiles: merged }, function () {
+            setStatus('Imported ' + Object.keys(imported).length + ' site(s)');
+            refresh();
+          });
+        });
+      } catch (err) {
+        setStatus('Import failed: ' + err.message, true);
+      }
+    };
+    reader.readAsText(file);
+    importFile.value = '';
   });
 
   // --- framework-aware fill function (runs in page context) ---
