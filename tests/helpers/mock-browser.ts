@@ -81,21 +81,6 @@ export function createMockBrowser(options: MockBrowserOptions = {}): MockBrowser
     async getActiveTab() {
       return activeTab;
     },
-    async executeFileAndCall<TPayload, TResult>(
-      tabId: number,
-      scriptFile: string,
-      runnerKey: string,
-      payload: TPayload
-    ): Promise<TResult> {
-      const frames = await executeFileAndCallFrames<TPayload, TResult>(
-        tabId,
-        scriptFile,
-        runnerKey,
-        payload,
-        false
-      );
-      return frames[0]!.result;
-    },
     executeFileAndCallFrames,
     async hasOriginPermission(originPattern: string): Promise<boolean> {
       return grantedOrigins.has(originPattern) || grantedOrigins.has('<all_urls>');

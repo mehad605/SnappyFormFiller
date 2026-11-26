@@ -55,11 +55,11 @@ export interface FieldSecurityMetadata {
 
 export type FieldRecordDecision = 'record' | 'skip-excluded' | 'skip-sensitive';
 
-export function isExcludedInputType(type: string): boolean {
+function isExcludedInputType(type: string): boolean {
   return EXCLUDED_INPUT_TYPES.has(type.toLowerCase());
 }
 
-export function isAlwaysBlockedField(meta: FieldSecurityMetadata): boolean {
+function isAlwaysBlockedField(meta: FieldSecurityMetadata): boolean {
   const candidates = [meta.id.trim(), meta.name.trim()].filter(Boolean);
   return candidates.some((text) => ALWAYS_BLOCKED_PATTERNS.some((pattern) => pattern.test(text)));
 }
@@ -72,7 +72,7 @@ export function isPasswordField(meta: FieldSecurityMetadata): boolean {
   return ac.includes('current-password') || ac.includes('new-password');
 }
 
-export function isSensitiveNonPasswordField(meta: FieldSecurityMetadata): boolean {
+function isSensitiveNonPasswordField(meta: FieldSecurityMetadata): boolean {
   const acTokens = meta.autocomplete.toLowerCase().split(/\s+/).filter(Boolean);
   if (acTokens.some((token) => SENSITIVE_AUTOCOMPLETE_TOKENS.has(token))) {
     return true;

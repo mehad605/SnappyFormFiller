@@ -14,6 +14,7 @@ import type {
   BrowserAdapter,
   ExtensionSettings,
   FormProfile,
+  ImportMode,
   LegacyFieldV2,
   RecordedField,
   SiteProfileCollection,
@@ -66,7 +67,7 @@ export function migrateLegacyField(legacy: LegacyFieldV2): RecordedField {
 /**
  * Migrates v2.0 `{ profiles: { [origin]: LegacyFieldV2[] } }` storage into v3 StorageRootV3.
  */
-export function migrateLegacyStorage(
+function migrateLegacyStorage(
   legacyProfiles: Record<string, unknown>,
   now = Date.now()
 ): StorageRootV3 {
@@ -395,7 +396,7 @@ export class StorageRepository {
 
   async importSites(
     incomingSites: Record<string, SiteProfileCollection>,
-    mode: 'merge' | 'replace'
+    mode: ImportMode
   ): Promise<void> {
     await this.mutate((root) => {
       if (mode === 'replace') {

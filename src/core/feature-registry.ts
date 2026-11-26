@@ -16,14 +16,6 @@ export class FeatureRegistry {
     return this;
   }
 
-  getAll(): readonly FeatureModule[] {
-    return Array.from(this.modules.values());
-  }
-
-  getById(id: string): FeatureModule | undefined {
-    return this.modules.get(id);
-  }
-
   getPopupActions(slot?: PopupActionSlot): PopupActionDescriptor[] {
     const actions: PopupActionDescriptor[] = [];
     for (const feature of this.modules.values()) {

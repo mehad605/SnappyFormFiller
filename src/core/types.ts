@@ -131,12 +131,6 @@ export interface BrowserAdapter {
   readonly target: BrowserTarget;
   supportsPopupFilePicker(): boolean;
   getActiveTab(): Promise<ActiveTabInfo | null>;
-  executeFileAndCall<TPayload, TResult>(
-    tabId: number,
-    scriptFile: string,
-    runnerKey: string,
-    payload: TPayload
-  ): Promise<TResult>;
   executeFileAndCallFrames<TPayload, TResult>(
     tabId: number,
     scriptFile: string,

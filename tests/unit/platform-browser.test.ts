@@ -169,13 +169,14 @@ describe('platform BrowserAdapter (Chromium & Firefox)', () => {
     const tab = await adapter.getActiveTab();
     expect(tab).toEqual({ id: 42, url: 'https://forms.example/contact' });
 
-    const res = await adapter.executeFileAndCall<{ x: number }, { doubled: number }>(
+    const frames = await adapter.executeFileAndCallFrames<{ x: number }, { doubled: number }>(
       42,
       'scripts/record.js',
       '__testRunner',
-      { x: 21 }
+      { x: 21 },
+      true
     );
-    expect(res).toEqual({ doubled: 42 });
+    expect(frames).toEqual([{ frameId: 0, result: { doubled: 42 } }]);
     // Verify atomic cleanup deleted the temporary isolated-world runner
     expect('__testRunner' in originalGlobal).toBe(false);
 

@@ -29,6 +29,7 @@
 - **Scores (100/100, +4):** Modularity 10 (0), Readability 10 (0), Onboarding 10 (+1), Efficiency 10 (0), Technique 10 (0), Features 10 (+1), Icon 10 (0), Compatibility 10 (+1), Security 10 (0), Testing 10 (+1). **All categories reached 10/10 — loop complete.**
 
 ## Post-Loop Enhancement — Overcoming Iframe, Closed Shadow DOM & Direct Hotkey Limitations (2026-11-26)
+
 - **Changes:**
   - Added closed Shadow DOM support (`src/platform/shadow-root.ts`: `chrome.dom.openOrClosedShadowRoot` on Chromium, `el.openOrClosedShadowRoot` on Firefox — zero extra permissions).
   - Added multi-frame iframe recording & filling (`allFrames: true`, `frameOrigin`/`framePath` locators, `aggregateFrameFillResults` — automatic for same-origin iframes, opt-in for cross-origin iframes via `optional_host_permissions` / `optional_permissions`).
