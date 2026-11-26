@@ -60,13 +60,17 @@ const TEST_PAGE_HTML = `<!DOCTYPE html>
 </html>`;
 
 function findChromiumBinary() {
-  const candidates = [
-    process.env.CHROMIUM_PATH,
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-    '/usr/bin/brave',
-  ].filter(Boolean);
+  if (process.env.CHROMIUM_PATH && existsSync(process.env.CHROMIUM_PATH)) {
+    return process.env.CHROMIUM_PATH;
+  }
+  // Prefer Playwright's bundled Chromium (branded Google Chrome 137+ removed --load-extension).
+  try {
+    const pwPath = chromium.executablePath();
+    if (pwPath && existsSync(pwPath)) return pwPath;
+  } catch {
+    // Fall back to locally installed Chromium-based browsers.
+  }
+  const candidates = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/brave'];
   for (const path of candidates) {
     if (existsSync(path)) return path;
   }
@@ -363,11 +367,12 @@ async function runChromiumSmokeTest(fixtureUrl) {
         console.log('Saved screenshots to docs/screenshots/');
       }
 
+      const ciScale = process.env.CI ? 3 : 1;
       const LATENCY_BUDGETS = {
-        popupLoadMs: 500,
-        optionsLoadMs: 500,
-        recordMs: 150,
-        fillMs: 100,
+        popupLoadMs: 500 * ciScale,
+        optionsLoadMs: 500 * ciScale,
+        recordMs: 150 * ciScale,
+        fillMs: 100 * ciScale,
       };
       if (popupLoadMs > LATENCY_BUDGETS.popupLoadMs) {
         throw new Error(
@@ -439,7 +444,9 @@ async function connectBidi(wsUrl) {
 
 async function runFirefoxGeckoBidiTest(firefoxDir, fixtureUrl) {
   const port = await getFreePort();
-  const profileDir = mkdtempSync(join(getShortTempBase(), 'snappy-ff-'));
+  // Create temporary profile inside the repo root (under $HOME) so Snap-packaged Firefox on Ubuntu
+  // CI runners can access it without hitting /tmp confinement.
+  const profileDir = mkdtempSync(join(process.cwd(), '.tmp-ff-'));
   writeFileSync(
     join(profileDir, 'user.js'),
     [

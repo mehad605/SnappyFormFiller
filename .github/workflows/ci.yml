@@ -36,9 +36,10 @@ jobs:
       - name: Build, package, and verify efficiency budgets
         run: npm run budgets
 
+      - name: Install Playwright Chromium for E2E
+        run: npx playwright-core install chromium
+
       - name: Run browser E2E smoke tests
-        env:
-          CHROMIUM_PATH: /usr/bin/google-chrome
         run: npm run test:e2e
 
       - name: Upload packaged extensions
