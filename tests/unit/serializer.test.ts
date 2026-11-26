@@ -12,6 +12,7 @@ describe('portability serializer', () => {
         skipSensitiveFields: true,
         highlightFilled: true,
         skipEmptyOnRecord: false,
+        includeIframes: true,
       },
       sites: {
         'https://shop.example': {

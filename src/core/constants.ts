@@ -11,7 +11,17 @@ export const MAX_PROFILES_PER_SITE = 50;
 export const MAX_PROFILE_NAME_LENGTH = 60;
 
 export const HIGHLIGHT_DURATION_MS = 900;
+export const BADGE_DURATION_MS = 2200;
 export const OBJECT_URL_REVOKE_DELAY_MS = 10_000;
+
+export const ALL_URLS_ORIGIN_PATTERN = '<all_urls>';
+
+export const COMMAND_FILL = 'fill-form';
+export const COMMAND_RECORD = 'record-form';
+
+export const MENU_ID_ROOT = 'snappy-root';
+export const MENU_ID_FILL = 'snappy-fill';
+export const MENU_ID_RECORD = 'snappy-record';
 
 /**
  * Isolated-world runner keys used to pass structured-clone arguments into
@@ -31,4 +41,5 @@ export const DEFAULT_SETTINGS = Object.freeze({
   skipSensitiveFields: true,
   highlightFilled: true,
   skipEmptyOnRecord: false,
+  includeIframes: true,
 });

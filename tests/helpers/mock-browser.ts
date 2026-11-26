@@ -1,24 +1,37 @@
-import type { ActiveTabInfo, BrowserAdapter, BrowserTarget } from '../../src/core/types';
+import type {
+  ActiveTabInfo,
+  BrowserAdapter,
+  BrowserTarget,
+  ContextMenuItem,
+  FrameExecutionResult,
+} from '../../src/core/types';
 
 export interface MockBrowserOptions {
   target?: BrowserTarget;
   activeTab?: ActiveTabInfo | null;
   initialStorage?: Record<string, unknown>;
+  grantedOrigins?: string[];
   version?: string;
   onExecuteFileAndCall?: <TPayload, TResult>(
     tabId: number,
     scriptFile: string,
     runnerKey: string,
-    payload: TPayload
+    payload: TPayload,
+    allFrames?: boolean
   ) => Promise<TResult> | TResult;
 }
 
 export interface MockBrowserControls {
   adapter: BrowserAdapter;
   storage: Map<string, unknown>;
+  grantedOrigins: Set<string>;
   openedOptionsHashes: Array<string | undefined>;
+  registeredMenus: ContextMenuItem[];
+  flashedBadges: Array<{ tabId: number; text: string; color: string }>;
   setActiveTab(tab: ActiveTabInfo | null): void;
   triggerInstalled(reason?: string): Promise<void>;
+  triggerCommand(command: string): Promise<void>;
+  triggerContextMenu(menuItemId: string, tab?: ActiveTabInfo | null): Promise<void>;
   sendToBackground(message: unknown): Promise<unknown>;
 }
 
@@ -29,9 +42,36 @@ export function createMockBrowser(options: MockBrowserOptions = {}): MockBrowser
       ? options.activeTab
       : { id: 1, url: 'https://example.com/signup' };
   const storage = new Map<string, unknown>(Object.entries(options.initialStorage ?? {}));
+  const grantedOrigins = new Set<string>(options.grantedOrigins ?? []);
   const openedOptionsHashes: Array<string | undefined> = [];
+  const registeredMenus: ContextMenuItem[] = [];
+  const flashedBadges: Array<{ tabId: number; text: string; color: string }> = [];
   const messageListeners: Array<(message: unknown) => Promise<unknown> | unknown> = [];
   const installedListeners: Array<(reason: string) => Promise<void> | void> = [];
+  const commandListeners: Array<(command: string) => Promise<void> | void> = [];
+  const menuListeners: Array<
+    (menuItemId: string, tab: ActiveTabInfo | null) => Promise<void> | void
+  > = [];
+
+  const executeFileAndCallFrames = async <TPayload, TResult>(
+    tabId: number,
+    scriptFile: string,
+    runnerKey: string,
+    payload: TPayload,
+    allFrames: boolean
+  ): Promise<Array<FrameExecutionResult<TResult>>> => {
+    if (!options.onExecuteFileAndCall) {
+      throw new Error(`Unexpected executeFileAndCall(${scriptFile})`);
+    }
+    const result = await options.onExecuteFileAndCall<TPayload, TResult>(
+      tabId,
+      scriptFile,
+      runnerKey,
+      payload,
+      allFrames
+    );
+    return [{ frameId: 0, result }];
+  };
 
   const adapter: BrowserAdapter = {
     target,
@@ -47,10 +87,25 @@ export function createMockBrowser(options: MockBrowserOptions = {}): MockBrowser
       runnerKey: string,
       payload: TPayload
     ): Promise<TResult> {
-      if (!options.onExecuteFileAndCall) {
-        throw new Error(`Unexpected executeFileAndCall(${scriptFile})`);
-      }
-      return await options.onExecuteFileAndCall(tabId, scriptFile, runnerKey, payload);
+      const frames = await executeFileAndCallFrames<TPayload, TResult>(
+        tabId,
+        scriptFile,
+        runnerKey,
+        payload,
+        false
+      );
+      return frames[0]!.result;
+    },
+    executeFileAndCallFrames,
+    async hasOriginPermission(originPattern: string): Promise<boolean> {
+      return grantedOrigins.has(originPattern) || grantedOrigins.has('<all_urls>');
+    },
+    async requestOriginPermission(originPattern: string): Promise<boolean> {
+      grantedOrigins.add(originPattern);
+      return true;
+    },
+    async removeOriginPermission(originPattern: string): Promise<boolean> {
+      return grantedOrigins.delete(originPattern);
     },
     async storageGet<T = unknown>(keys: string[]): Promise<Record<string, T>> {
       const out: Record<string, T> = {};
@@ -88,18 +143,44 @@ export function createMockBrowser(options: MockBrowserOptions = {}): MockBrowser
     onInstalled(handler) {
       installedListeners.push(handler);
     },
+    onCommand(handler) {
+      commandListeners.push(handler);
+    },
+    async registerContextMenus(items) {
+      registeredMenus.length = 0;
+      registeredMenus.push(...items);
+    },
+    onContextMenuClick(handler) {
+      menuListeners.push(handler);
+    },
+    async flashBadge(tabId, text, color) {
+      flashedBadges.push({ tabId, text, color });
+    },
   };
 
   return {
     adapter,
     storage,
+    grantedOrigins,
     openedOptionsHashes,
+    registeredMenus,
+    flashedBadges,
     setActiveTab(tab) {
       activeTab = tab;
     },
     async triggerInstalled(reason = 'update') {
       for (const listener of installedListeners) {
         await listener(reason);
+      }
+    },
+    async triggerCommand(command: string) {
+      for (const listener of commandListeners) {
+        await listener(command);
+      }
+    },
+    async triggerContextMenu(menuItemId: string, tab: ActiveTabInfo | null = activeTab) {
+      for (const listener of menuListeners) {
+        await listener(menuItemId, tab);
       }
     },
     async sendToBackground(message: unknown) {

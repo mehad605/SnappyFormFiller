@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fillFormFields } from '../../src/features/filler/framework-setter';
+import { aggregateFrameFillResults } from '../../src/features/filler/service';
 import { collectFormFields } from '../../src/features/recorder/dom-collector';
 
 const defaultRecordOpts = {
@@ -182,5 +183,88 @@ describe('recorder and framework-aware filler end-to-end DOM', () => {
 
     vi.advanceTimersByTime(1000);
     expect(userEl.style.outline).toBe(initialOutline);
+  });
+
+  it('records and fills closed Shadow DOM inputs via custom ShadowRootResolver', () => {
+    const host = document.createElement('div');
+    const closedShadow = host.attachShadow({ mode: 'closed' });
+    const input = document.createElement('input');
+    input.name = 'closed_shadow_city';
+    input.value = 'Edinburgh';
+    closedShadow.appendChild(input);
+    document.body.appendChild(host);
+
+    // Standard el.shadowRoot is null for closed shadow roots
+    expect(host.shadowRoot).toBeNull();
+
+    const resolver = (el: Element) => (el === host ? closedShadow : el.shadowRoot);
+    const recorded = collectFormFields(document, defaultRecordOpts, resolver);
+    expect(recorded.fields).toHaveLength(1);
+    expect(recorded.fields[0]?.locator.inShadowDom).toBe(true);
+    expect(recorded.fields[0]?.value).toBe('Edinburgh');
+
+    input.value = '';
+    const res = fillFormFields(
+      document,
+      { fields: recorded.fields, highlightFilled: false },
+      resolver
+    );
+    expect(res.filledCount).toBe(1);
+    expect(input.value).toBe('Edinburgh');
+  });
+
+  it('scopes subframe fields by frameOrigin/framePath and aggregates multi-frame fills accurately', () => {
+    // Main frame DOM
+    document.body.innerHTML = `<input id="top_name" name="top_name" value="Top Value" />`;
+    const topRecorded = collectFormFields(document, defaultRecordOpts, undefined, {
+      isSubframe: false,
+      origin: 'https://app.example',
+      pathname: '/checkout',
+    });
+
+    // Subframe DOM (simulated separate document)
+    const subDoc = document.implementation.createHTMLDocument('sub');
+    subDoc.body.innerHTML = `<input id="frame_note" name="frame_note" value="Inside Iframe" />`;
+    const subRecorded = collectFormFields(subDoc, defaultRecordOpts, undefined, {
+      isSubframe: true,
+      origin: 'https://app.example',
+      pathname: '/embed-form',
+    });
+
+    expect(subRecorded.fields[0]?.locator.frameOrigin).toBe('https://app.example');
+    expect(subRecorded.fields[0]?.locator.framePath).toBe('/embed-form');
+
+    const combinedFields = [
+      ...topRecorded.fields,
+      ...subRecorded.fields,
+      {
+        label: 'Missing Frame Field',
+        type: 'text',
+        value: 'x',
+        locator: { id: 'gone', frameOrigin: 'https://other.example', framePath: '/x' },
+      },
+    ];
+
+    (document.getElementById('top_name') as HTMLInputElement).value = '';
+    (subDoc.getElementById('frame_note') as HTMLInputElement).value = '';
+
+    const topFill = fillFormFields(
+      document,
+      { fields: combinedFields, highlightFilled: false },
+      undefined,
+      { isSubframe: false, origin: 'https://app.example', pathname: '/checkout' }
+    );
+    const subFill = fillFormFields(
+      subDoc,
+      { fields: combinedFields, highlightFilled: false },
+      undefined,
+      { isSubframe: true, origin: 'https://app.example', pathname: '/embed-form' }
+    );
+
+    const aggregated = aggregateFrameFillResults(combinedFields, [topFill, subFill]);
+    expect(aggregated.filledCount).toBe(2);
+    expect(aggregated.unmatchedLabels).toEqual(['Missing Frame Field']);
+    expect((document.getElementById('top_name') as HTMLInputElement).value).toBe('Top Value');
+    expect((subDoc.getElementById('frame_note') as HTMLInputElement).value).toBe('Inside Iframe');
   });
 });

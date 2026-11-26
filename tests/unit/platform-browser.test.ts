@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBrowserAdapter } from '../../src/platform/browser';
+import { getOpenOrClosedShadowRoot } from '../../src/platform/shadow-root';
 
 const originalGlobal = globalThis as Record<string, unknown>;
 
@@ -19,6 +20,15 @@ function createFakeWebExtApi() {
   const createdTabs: Array<{ url: string }> = [];
   let openOptionsCalls = 0;
 
+  const commandListeners: Array<(cmd: string) => void> = [];
+  const menuListeners: Array<
+    (info: { menuItemId: string }, tab?: { id?: number; url?: string }) => void
+  > = [];
+  const createdMenus: Array<{ id: string; title: string; parentId?: string; contexts: string[] }> =
+    [];
+  const badgeTexts: string[] = [];
+  const grantedOrigins = new Set<string>();
+
   const api = {
     tabs: {
       query: vi.fn(async () => [{ id: 42, url: 'https://forms.example/contact' }]),
@@ -30,7 +40,7 @@ function createFakeWebExtApi() {
     scripting: {
       executeScript: vi.fn(
         async (injection: {
-          target: { tabId: number };
+          target: { tabId: number; allFrames?: boolean };
           files?: string[];
           func?: (...args: unknown[]) => unknown;
           args?: unknown[];
@@ -39,15 +49,58 @@ function createFakeWebExtApi() {
             originalGlobal['__testRunner'] = (payload: { x: number }) => ({
               doubled: payload.x * 2,
             });
-            return [{ result: undefined }];
+            return [{ frameId: 0, result: undefined }];
           }
           if (injection.func) {
             const result = injection.func(...(injection.args ?? []));
-            return [{ result }];
+            return [{ frameId: 0, result }];
           }
           return [];
         }
       ),
+    },
+    permissions: {
+      contains: vi.fn(async ({ origins }: { origins?: string[] }) =>
+        Boolean(origins?.every((o) => grantedOrigins.has(o)))
+      ),
+      request: vi.fn(async ({ origins }: { origins?: string[] }) => {
+        origins?.forEach((o) => grantedOrigins.add(o));
+        return true;
+      }),
+      remove: vi.fn(async ({ origins }: { origins?: string[] }) => {
+        origins?.forEach((o) => grantedOrigins.delete(o));
+        return true;
+      }),
+    },
+    commands: {
+      onCommand: {
+        addListener(fn: (cmd: string) => void) {
+          commandListeners.push(fn);
+        },
+      },
+    },
+    contextMenus: {
+      removeAll: vi.fn(async () => {
+        createdMenus.length = 0;
+      }),
+      create: vi.fn(
+        (item: { id: string; title: string; parentId?: string; contexts: string[] }) => {
+          createdMenus.push(item);
+        }
+      ),
+      onClicked: {
+        addListener(
+          fn: (info: { menuItemId: string }, tab?: { id?: number; url?: string }) => void
+        ) {
+          menuListeners.push(fn);
+        },
+      },
+    },
+    action: {
+      setBadgeBackgroundColor: vi.fn(async () => {}),
+      setBadgeText: vi.fn(async ({ text }: { text: string }) => {
+        badgeTexts.push(text);
+      }),
     },
     storage: {
       local: {
@@ -97,6 +150,10 @@ function createFakeWebExtApi() {
     createdTabs,
     messageListeners,
     installListeners,
+    commandListeners,
+    menuListeners,
+    createdMenus,
+    badgeTexts,
     getOpenOptionsCalls: () => openOptionsCalls,
   };
 }
@@ -171,5 +228,54 @@ describe('platform BrowserAdapter (Chromium & Firefox)', () => {
 
     const adapter = createBrowserAdapter();
     expect(await adapter.getActiveTab()).toBeNull();
+  });
+
+  it('supports optional origin permissions, context menus, commands, and badge flashing', async () => {
+    const fake = createFakeWebExtApi();
+    originalGlobal['chrome'] = fake.api;
+    const adapter = createBrowserAdapter();
+
+    expect(await adapter.hasOriginPermission('https://app.example/*')).toBe(false);
+    expect(await adapter.requestOriginPermission('https://app.example/*')).toBe(true);
+    expect(await adapter.hasOriginPermission('https://app.example/*')).toBe(true);
+    expect(await adapter.removeOriginPermission('https://app.example/*')).toBe(true);
+    expect(await adapter.hasOriginPermission('https://app.example/*')).toBe(false);
+
+    await adapter.registerContextMenus([
+      { id: 'snappy-fill', title: 'Fill Form', contexts: ['page'] },
+    ]);
+    expect(fake.createdMenus).toHaveLength(1);
+
+    const menuSpy = vi.fn();
+    adapter.onContextMenuClick(menuSpy);
+    fake.menuListeners[0]!({ menuItemId: 'snappy-fill' }, { id: 7, url: 'https://a.test' });
+    expect(menuSpy).toHaveBeenCalledWith('snappy-fill', { id: 7, url: 'https://a.test' });
+
+    const cmdSpy = vi.fn();
+    adapter.onCommand(cmdSpy);
+    fake.commandListeners[0]!('fill-form');
+    expect(cmdSpy).toHaveBeenCalledWith('fill-form');
+
+    await adapter.flashBadge(7, '6', '#059669');
+    expect(fake.badgeTexts).toContain('6');
+  });
+
+  it('resolves closed Shadow DOM roots via Chromium chrome.dom and Firefox openOrClosedShadowRoot', () => {
+    const hostA = document.createElement('div');
+    const closedA = hostA.attachShadow({ mode: 'closed' });
+    originalGlobal['chrome'] = {
+      dom: {
+        openOrClosedShadowRoot: (el: Element) => (el === hostA ? closedA : null),
+      },
+    };
+    expect(getOpenOrClosedShadowRoot(hostA)).toBe(closedA);
+
+    delete originalGlobal['chrome'];
+    const hostB = document.createElement('div') as HTMLDivElement & {
+      openOrClosedShadowRoot?: ShadowRoot;
+    };
+    const closedB = hostB.attachShadow({ mode: 'closed' });
+    hostB.openOrClosedShadowRoot = closedB;
+    expect(getOpenOrClosedShadowRoot(hostB)).toBe(closedB);
   });
 });

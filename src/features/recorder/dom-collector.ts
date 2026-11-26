@@ -5,9 +5,16 @@ import {
   getTestId,
   isDynamicId,
   type FormControlElement,
+  type ShadowRootResolver,
 } from '../../core/dom-controls';
 import { classifyFieldForRecording, isPasswordField } from '../../core/sensitive';
 import type { FieldLocator, RecordedField, RecordOptions, RecordResult } from '../../core/types';
+
+export interface FrameContextMeta {
+  isSubframe: boolean;
+  origin: string;
+  pathname: string;
+}
 
 function deriveDisplayLabel(locator: FieldLocator, fallbackType: string): string {
   return (
@@ -42,10 +49,15 @@ function isEmptyControlValue(type: string, value: string | string[], checked?: b
 }
 
 /**
- * Collects all recordable form fields from a document (including open Shadow DOM).
+ * Collects all recordable form fields from a document (including open & closed Shadow DOM).
  */
-export function collectFormFields(doc: Document, options: RecordOptions): RecordResult {
-  const controls = collectControls(doc);
+export function collectFormFields(
+  doc: Document,
+  options: RecordOptions,
+  resolveShadowRoot: ShadowRootResolver = (el) => el.shadowRoot,
+  frameMeta?: FrameContextMeta
+): RecordResult {
+  const controls = collectControls(doc, false, [], resolveShadowRoot);
   const fields: RecordedField[] = [];
   let skippedSensitive = 0;
   let skippedEmpty = 0;
@@ -99,6 +111,9 @@ export function collectFormFields(doc: Document, options: RecordOptions): Record
       ...(cssPath ? { cssPath } : {}),
       ...(typeof index === 'number' ? { index } : {}),
       ...(inShadowDom ? { inShadowDom: true } : {}),
+      ...(frameMeta?.isSubframe
+        ? { frameOrigin: frameMeta.origin, framePath: frameMeta.pathname }
+        : {}),
     };
 
     const sensitive = isPasswordField({ type, id, name, autocomplete, ariaLabel });

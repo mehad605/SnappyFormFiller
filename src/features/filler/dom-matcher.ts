@@ -4,6 +4,7 @@ import {
   getAssociatedLabelText,
   getTestId,
   type FormControlElement,
+  type ShadowRootResolver,
 } from '../../core/dom-controls';
 import type { RecordedField } from '../../core/types';
 
@@ -21,10 +22,13 @@ export interface IndexedControl {
 }
 
 /**
- * Indexes all form controls in the document and open Shadow DOM in a single pass.
+ * Indexes all form controls in the document and open/closed Shadow DOM in a single pass.
  */
-export function indexPageControls(doc: Document): IndexedControl[] {
-  return collectControls(doc).map(({ el, inShadowDom }) => ({
+export function indexPageControls(
+  doc: Document,
+  resolveShadowRoot: ShadowRootResolver = (el) => el.shadowRoot
+): IndexedControl[] {
+  return collectControls(doc, false, [], resolveShadowRoot).map(({ el, inShadowDom }) => ({
     el,
     type: (el.type || el.tagName.toLowerCase()).toLowerCase(),
     id: el.id?.trim() ?? '',

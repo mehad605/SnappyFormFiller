@@ -1,7 +1,13 @@
 import { HIGHLIGHT_DURATION_MS } from '../../core/constants';
-import type { FormControlElement } from '../../core/dom-controls';
+import type { FormControlElement, ShadowRootResolver } from '../../core/dom-controls';
 import type { FillOptions, FillResult, RecordedField } from '../../core/types';
 import { indexPageControls, matchControl } from './dom-matcher';
+
+export interface FillFrameMeta {
+  isSubframe: boolean;
+  origin: string;
+  pathname: string;
+}
 
 interface ReactValueTracker {
   setValue(value: string): void;
@@ -112,12 +118,35 @@ function applyFieldValue(
   return true;
 }
 
+function fieldBelongsToFrame(field: RecordedField, frameMeta?: FillFrameMeta): boolean {
+  if (!frameMeta) return true;
+  const targetOrigin = field.locator.frameOrigin;
+  if (!frameMeta.isSubframe) {
+    return !targetOrigin;
+  }
+  if (!targetOrigin) {
+    return false;
+  }
+  if (targetOrigin !== frameMeta.origin) {
+    return false;
+  }
+  if (field.locator.framePath && field.locator.framePath !== frameMeta.pathname) {
+    return false;
+  }
+  return true;
+}
+
 /**
  * Fills recorded fields into the active document using native property setters and synthetic
  * event dispatch compatible with React, Vue, Angular, Svelte, and vanilla HTML.
  */
-export function fillFormFields(doc: Document, options: FillOptions): FillResult {
-  const candidates = indexPageControls(doc);
+export function fillFormFields(
+  doc: Document,
+  options: FillOptions,
+  resolveShadowRoot: ShadowRootResolver = (el) => el.shadowRoot,
+  frameMeta?: FillFrameMeta
+): FillResult {
+  const candidates = indexPageControls(doc, resolveShadowRoot);
   const used = new Set<FormControlElement>();
   const setters = getNativeSetters();
 
@@ -125,20 +154,26 @@ export function fillFormFields(doc: Document, options: FillOptions): FillResult 
   let unchangedCount = 0;
   let skippedDisabledCount = 0;
   const unmatchedLabels: string[] = [];
+  const matchedIndices: number[] = [];
 
-  for (const field of options.fields) {
+  options.fields.forEach((field, idx) => {
+    if (!fieldBelongsToFrame(field, frameMeta)) {
+      return;
+    }
+
     const matched = matchControl(field, candidates, used);
     if (!matched) {
       unmatchedLabels.push(field.label || field.locator.id || field.locator.name || field.type);
-      continue;
+      return;
     }
 
     used.add(matched.el);
+    matchedIndices.push(idx);
 
     const isReadOnly = 'readOnly' in matched.el && Boolean(matched.el.readOnly);
     if (matched.el.disabled || isReadOnly) {
       skippedDisabledCount += 1;
-      continue;
+      return;
     }
 
     const changed = applyFieldValue(matched.el, field, setters);
@@ -150,12 +185,13 @@ export function fillFormFields(doc: Document, options: FillOptions): FillResult 
     } else {
       unchangedCount += 1;
     }
-  }
+  });
 
   return {
     filledCount,
     unchangedCount,
     skippedDisabledCount,
     unmatchedLabels,
+    matchedIndices,
   };
 }

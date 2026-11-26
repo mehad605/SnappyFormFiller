@@ -1,5 +1,7 @@
 export type FormControlElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
+export type ShadowRootResolver = (el: Element) => ShadowRoot | null;
+
 const CONTROL_SELECTOR = 'input, select, textarea';
 
 /** Patterns for framework-generated ephemeral IDs (React useId, MUI, Radix, Ember). */
@@ -11,12 +13,13 @@ export function isDynamicId(id: string): boolean {
 }
 
 /**
- * Traverses a document and any open Shadow DOM roots in DOM order, collecting form controls.
+ * Traverses a document and any open or closed Shadow DOM roots in DOM order, collecting form controls.
  */
 export function collectControls(
   root: Document | ShadowRoot,
   inShadowDom = false,
-  acc: Array<{ el: FormControlElement; inShadowDom: boolean }> = []
+  acc: Array<{ el: FormControlElement; inShadowDom: boolean }> = [],
+  resolveShadowRoot: ShadowRootResolver = (el) => el.shadowRoot
 ): Array<{ el: FormControlElement; inShadowDom: boolean }> {
   const startNode: Element | ShadowRoot | null =
     root instanceof Document ? (root.body ?? root.documentElement) : root;
@@ -27,8 +30,9 @@ export function collectControls(
       if (child.matches(CONTROL_SELECTOR)) {
         acc.push({ el: child as FormControlElement, inShadowDom: insideShadow });
       }
-      if (child.shadowRoot) {
-        visit(child.shadowRoot, true);
+      const shadow = resolveShadowRoot(child);
+      if (shadow) {
+        visit(shadow, true);
       }
       if (child.children.length > 0) {
         visit(child, insideShadow);
@@ -53,7 +57,10 @@ export function getAssociatedLabelText(el: FormControlElement, doc: Document): s
 
   if (el.id) {
     try {
-      const explicit = doc.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+      const rootNode = el.getRootNode();
+      const queryRoot =
+        rootNode instanceof ShadowRoot || rootNode instanceof Document ? rootNode : doc;
+      const explicit = queryRoot.querySelector(`label[for="${CSS.escape(el.id)}"]`);
       const text = explicit?.textContent?.trim();
       if (text) return text;
     } catch {

@@ -35,7 +35,15 @@ h1 {
   color: var(--text);
 }
 
+.site-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .site-pill {
+  flex: 1;
+  min-width: 0;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-muted);
@@ -46,6 +54,19 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.hotkey-btn {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 4px 7px;
+  white-space: nowrap;
+}
+
+.hotkey-btn[data-enabled='true'] {
+  background: var(--success-bg);
+  border-color: var(--success-border);
+  color: var(--success-text);
 }
 
 .profile-bar {

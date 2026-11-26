@@ -10,8 +10,12 @@ export interface FieldLocator {
   cssPath?: string;
   /** Zero-based occurrence index when multiple inputs share the same name/label. */
   index?: number;
-  /** True when the field lives inside an open Shadow DOM root. */
+  /** True when the field lives inside an open or closed Shadow DOM root. */
   inShadowDom?: boolean;
+  /** Set when the field was recorded inside an iframe (same-origin or opt-in cross-origin). */
+  frameOrigin?: string;
+  /** Subframe pathname used to disambiguate multiple iframes from the same origin. */
+  framePath?: string;
 }
 
 export interface RecordedField {
@@ -46,6 +50,7 @@ export interface ExtensionSettings {
   skipSensitiveFields: boolean;
   highlightFilled: boolean;
   skipEmptyOnRecord: boolean;
+  includeIframes: boolean;
 }
 
 export interface StorageRootV3 {
@@ -92,6 +97,20 @@ export interface FillResult {
   unchangedCount: number;
   skippedDisabledCount: number;
   unmatchedLabels: string[];
+  /** Indices of options.fields handled by this frame (used to aggregate multi-frame fills accurately). */
+  matchedIndices?: number[];
+}
+
+export interface FrameExecutionResult<T> {
+  frameId: number;
+  result: T;
+}
+
+export interface ContextMenuItem {
+  id: string;
+  title: string;
+  parentId?: string;
+  contexts: readonly string[];
 }
 
 export type ImportMode = 'merge' | 'replace';
@@ -118,6 +137,16 @@ export interface BrowserAdapter {
     runnerKey: string,
     payload: TPayload
   ): Promise<TResult>;
+  executeFileAndCallFrames<TPayload, TResult>(
+    tabId: number,
+    scriptFile: string,
+    runnerKey: string,
+    payload: TPayload,
+    allFrames: boolean
+  ): Promise<Array<FrameExecutionResult<TResult>>>;
+  hasOriginPermission(originPattern: string): Promise<boolean>;
+  requestOriginPermission(originPattern: string): Promise<boolean>;
+  removeOriginPermission(originPattern: string): Promise<boolean>;
   storageGet<T = unknown>(keys: string[]): Promise<Record<string, T>>;
   storageSet(items: Record<string, unknown>): Promise<void>;
   storageRemove(keys: string[]): Promise<void>;
@@ -126,6 +155,12 @@ export interface BrowserAdapter {
   sendMessage<TReq, TRes>(message: TReq): Promise<TRes | undefined>;
   onMessage(handler: (message: unknown) => Promise<unknown> | unknown): void;
   onInstalled(handler: (reason: string) => Promise<void> | void): void;
+  onCommand(handler: (command: string) => Promise<void> | void): void;
+  registerContextMenus(items: readonly ContextMenuItem[]): Promise<void>;
+  onContextMenuClick(
+    handler: (menuItemId: string, tab: ActiveTabInfo | null) => Promise<void> | void
+  ): void;
+  flashBadge(tabId: number, text: string, color: string): Promise<void>;
 }
 
 export type PopupActionSlot = 'primary' | 'secondary' | 'utility';

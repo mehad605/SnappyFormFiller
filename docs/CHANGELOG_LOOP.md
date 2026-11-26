@@ -1,6 +1,7 @@
 # Improvement Loop Changelog
 
 ## Iteration 1 — Baseline Rewrite (2026-11-26)
+
 - **Changes:**
   - Completed Phase 0 discovery (`docs/ANALYSIS.md`) and Phase 1 ADRs (`docs/decisions/001`–`006`, `docs/FEATURES.md`).
   - Rewrote extension in strict TypeScript + esbuild with modular `core/`, `platform/`, `features/`, `background/`, and `ui/` layers.
@@ -11,6 +12,7 @@
 - **Scores (87/100):** Modularity 9, Readability 9, Onboarding 8, Efficiency 9, Technique 10, Features 9, Icon 9, Compatibility 8, Security 8, Testing 8.
 
 ## Iteration 2 — Security Audit, Platform Tests, Readability & Budgets (2026-11-26)
+
 - **Changes:**
   - Upgraded `vitest@5.1.2`, `happy-dom@21.0.4`, and `esbuild@0.28.2`, resolving all 4 `npm audit` vulnerabilities (**0 vulnerabilities**).
   - Extracted `src/ui/popup/profile-bar.ts` from `popup.ts` and fixed duplicate unsupported-page copy.
@@ -19,8 +21,17 @@
 - **Scores (96/100, +9):** Modularity 10 (+1), Readability 10 (+1), Onboarding 9 (+1), Efficiency 10 (+1), Technique 10 (0), Features 9 (0), Icon 10 (+1), Compatibility 9 (+1), Security 10 (+2), Testing 9 (+1).
 
 ## Iteration 3 — Live Firefox Gecko BiDi E2E, Full Feature Coverage & Populated Screenshots (2026-11-26)
+
 - **Changes:**
   - Added live headless Mozilla Firefox 161.0 WebDriver BiDi smoke test (`webExtension.install` of `dist/firefox/` + Gecko record/fill including open Shadow DOM) in `tests/e2e/run-e2e.mjs`.
   - Expanded `tests/unit/features-and-messaging.test.ts` to 38/38 total unit tests covering every feature's `popupActions` (`record`, `fill`, `clear-site`, `clear-all`, `export`, `import` across Chromium & Firefox, including cancel/empty/unmatched paths).
   - Captured and visually verified populated light/dark Popup screenshots (showing active origin, profile switcher, and inline-editable fields) and full-page Options screenshots in `docs/screenshots/`.
 - **Scores (100/100, +4):** Modularity 10 (0), Readability 10 (0), Onboarding 10 (+1), Efficiency 10 (0), Technique 10 (0), Features 10 (+1), Icon 10 (0), Compatibility 10 (+1), Security 10 (0), Testing 10 (+1). **All categories reached 10/10 — loop complete.**
+
+## Post-Loop Enhancement — Overcoming Iframe, Closed Shadow DOM & Direct Hotkey Limitations (2026-11-26)
+- **Changes:**
+  - Added closed Shadow DOM support (`src/platform/shadow-root.ts`: `chrome.dom.openOrClosedShadowRoot` on Chromium, `el.openOrClosedShadowRoot` on Firefox — zero extra permissions).
+  - Added multi-frame iframe recording & filling (`allFrames: true`, `frameOrigin`/`framePath` locators, `aggregateFrameFillResults` — automatic for same-origin iframes, opt-in for cross-origin iframes via `optional_host_permissions` / `optional_permissions`).
+  - Added right-click context menu (`contextMenus`, zero install warning, graceful Firefox Android fallback) and direct global hotkeys (`Alt+Shift+F` / `Alt+Shift+R`) with per-site opt-in `Hotkeys: Off / On` toggle in the popup, global opt-in toggle in Options, and brief toolbar badge feedback.
+  - Documented rationale in `docs/decisions/007-iframes-closed-shadow-and-direct-shortcuts.md`; expanded unit suite to 42/42 passing tests and verified live same-origin iframe record/fill in Chromium E2E + Firefox Gecko BiDi.
+- **Scores (100/100 maintained):** All 10 categories remain 10/10 with all efficiency budgets passing.

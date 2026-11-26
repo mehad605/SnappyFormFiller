@@ -9,6 +9,17 @@ import { chromium } from 'playwright-core';
 
 const CAPTURE_SCREENSHOTS = process.argv.includes('--screenshots');
 
+const IFRAME_PAGE_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Embedded Frame</title></head>
+<body>
+  <form id="iframe-form">
+    <label for="iframeNote">Iframe Note</label>
+    <input id="iframeNote" name="iframeNote" type="text" value="From Same-Origin Iframe" />
+  </form>
+</body>
+</html>`;
+
 const TEST_PAGE_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Snappy E2E Fixture</title></head>
@@ -27,6 +38,8 @@ const TEST_PAGE_HTML = `<!DOCTYPE html>
     <input id="captcha" name="captcha_token" type="text" value="bot-check" />
   </form>
   <div id="shadow-host"></div>
+  <div id="closed-shadow-host"></div>
+  <iframe id="same-origin-frame" src="/embed"></iframe>
   <script>
     const host = document.getElementById('shadow-host');
     const root = host.attachShadow({ mode: 'open' });
@@ -34,6 +47,14 @@ const TEST_PAGE_HTML = `<!DOCTYPE html>
     inp.name = 'shadow_city';
     inp.value = 'London';
     root.appendChild(inp);
+
+    const closedHost = document.getElementById('closed-shadow-host');
+    const closedRoot = closedHost.attachShadow({ mode: 'closed' });
+    const closedInp = document.createElement('input');
+    closedInp.name = 'closed_shadow_postal';
+    closedInp.value = 'SW1A';
+    closedRoot.appendChild(closedInp);
+    window.__closedShadowInput = closedInp;
   </script>
 </body>
 </html>`;
@@ -69,9 +90,9 @@ async function getFreePort() {
 }
 
 async function startFixtureServer() {
-  const server = createServer((_req, res) => {
+  const server = createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(TEST_PAGE_HTML);
+    res.end(req.url === '/embed' ? IFRAME_PAGE_HTML : TEST_PAGE_HTML);
   });
   await new Promise((resolvePromise) => server.listen(0, '127.0.0.1', resolvePromise));
   const addr = server.address();
@@ -115,7 +136,11 @@ async function runChromiumSmokeTest(fixtureUrl) {
       }
 
       const formPage = await context.newPage();
-      await formPage.goto(fixtureUrl, { waitUntil: 'domcontentloaded' });
+      await formPage.goto(fixtureUrl, { waitUntil: 'load' });
+      const iframe = formPage.frames().find((f) => f.url().endsWith('/embed'));
+      if (!iframe) {
+        throw new Error('Same-origin iframe did not load on fixture page');
+      }
 
       const optionsPage = await context.newPage();
       await optionsPage.setViewportSize({ width: 920, height: 920 });
@@ -195,6 +220,40 @@ async function runChromiumSmokeTest(fixtureUrl) {
         verifiedValues.shadowCity !== 'London'
       ) {
         throw new Error(`Filled values mismatch: ${JSON.stringify(verifiedValues)}`);
+      }
+
+      // Also verify same-origin iframe recording & filling with frameOrigin/framePath scoping
+      await iframe.addScriptTag({ content: recordBundle });
+      const iframeRecorded = await iframe.evaluate(() => {
+        const fn = globalThis.__snappyFormFillerRecordRunner;
+        delete globalThis.__snappyFormFillerRecordRunner;
+        return fn({ skipPasswords: true, skipSensitiveFields: true, skipEmptyOnRecord: false });
+      });
+      if (
+        iframeRecorded.fields.length !== 1 ||
+        iframeRecorded.fields[0].locator.framePath !== '/embed'
+      ) {
+        throw new Error(
+          `Expected 1 iframe field with /embed path, got ${JSON.stringify(iframeRecorded)}`
+        );
+      }
+      await iframe.evaluate(() => {
+        document.getElementById('iframeNote').value = '';
+      });
+      await iframe.addScriptTag({ content: fillBundle });
+      const iframeFilled = await iframe.evaluate(
+        (fields) => {
+          const fn = globalThis.__snappyFormFillerFillRunner;
+          delete globalThis.__snappyFormFillerFillRunner;
+          return fn({ fields, highlightFilled: true });
+        },
+        [...recorded.fields, ...iframeRecorded.fields]
+      );
+      const iframeNoteVal = await iframe.evaluate(
+        () => document.getElementById('iframeNote').value
+      );
+      if (iframeFilled.filledCount !== 1 || iframeNoteVal !== 'From Same-Origin Iframe') {
+        throw new Error(`Iframe fill failed: ${JSON.stringify(iframeFilled)} / "${iframeNoteVal}"`);
       }
 
       const popupPage = await context.newPage();
@@ -277,7 +336,7 @@ async function runChromiumSmokeTest(fixtureUrl) {
         // Open a dedicated preview page simulating the active web tab so screenshots show the
         // real popup populated with profiles and inline-editable fields in light & dark mode.
         const shotPopup = await context.newPage();
-        await shotPopup.setViewportSize({ width: 380, height: 590 });
+        await shotPopup.setViewportSize({ width: 380, height: 600 });
         await shotPopup.addInitScript((origin) => {
           const origQuery = chrome.tabs.query.bind(chrome.tabs);
           chrome.tabs.query = async (queryInfo) => {

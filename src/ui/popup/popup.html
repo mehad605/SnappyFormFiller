@@ -24,7 +24,17 @@
         </button>
       </header>
 
-      <div class="site-pill" id="siteInfo" title="Current site origin">—</div>
+      <div class="site-row">
+        <div class="site-pill" id="siteInfo" title="Current site origin">—</div>
+        <button
+          type="button"
+          id="hotkeyPermBtn"
+          class="btn btn-neutral btn-sm hotkey-btn hidden"
+          title="Enable direct Alt+Shift+F / Alt+Shift+R shortcuts on this site without opening the popup"
+        >
+          Hotkeys: Off
+        </button>
+      </div>
 
       <section class="profile-bar" id="profileBar" aria-label="Site profiles">
         <label for="profileSelect" class="sr-only">Active profile</label>

@@ -55,5 +55,10 @@ Every feature in v3.0 is strictly aligned with the extension's purpose: **fast, 
 ## Explicitly Out of Scope (Not Added)
 
 - **Cloud sync / user accounts:** Conflicts with privacy-first local storage and requires external infrastructure.
-- **Auto-fill on page load:** Would require `<all_urls>` host permissions and persistent content scripts, violating our minimal-permission and zero-idle-overhead budgets.
-- **Cross-origin iframe injection:** Would require `all_frames: true` + broader host permissions; same-document + open Shadow DOM covers standard forms safely under `activeTab`.
+- **Auto-fill on page load:** Would require automatic injection without user action, exposing form data to unintended pages.
+
+## Progressive Opt-In Capabilities (Added in v3.0 — ADR 007)
+
+- **Closed Shadow DOM:** Handled automatically with zero extra permissions via `chrome.dom.openOrClosedShadowRoot` (Chromium 88+) and `el.openOrClosedShadowRoot` (Firefox 63+) isolated in `src/platform/shadow-root.ts`.
+- **Same-origin & Opt-In Cross-origin Iframes:** Same-origin iframes work automatically under `activeTab` (`allFrames: true`) with frame-scoped `frameOrigin`/`framePath` locators and accurate cross-frame aggregation. Cross-origin iframes are enabled only when the user opts into `optional_host_permissions` in Settings.
+- **Right-Click Context Menu & Direct Global Hotkeys (`Alt+Shift+F` / `Alt+Shift+R`):** Context menu actions work on any page without host permissions (degrading gracefully on Firefox for Android). Direct global hotkeys work immediately on sites where the user clicks `Hotkeys: On` in the popup (per-origin `permissions.request`) or enables optional global access in Settings, flashing a brief toolbar badge (`6`, `R6`, or `!`).

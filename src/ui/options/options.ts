@@ -1,4 +1,4 @@
-import { MAX_IMPORT_FILE_BYTES } from '../../core/constants';
+import { ALL_URLS_ORIGIN_PATTERN, MAX_IMPORT_FILE_BYTES } from '../../core/constants';
 import { StorageRepository } from '../../core/storage';
 import type { ExtensionSettings, RecordedField } from '../../core/types';
 import {
@@ -30,6 +30,8 @@ async function initOptions(): Promise<void> {
   const optSkipSensitive = getRequiredEl<HTMLInputElement>('optSkipSensitive');
   const optHighlightFilled = getRequiredEl<HTMLInputElement>('optHighlightFilled');
   const optSkipEmpty = getRequiredEl<HTMLInputElement>('optSkipEmpty');
+  const optIncludeIframes = getRequiredEl<HTMLInputElement>('optIncludeIframes');
+  const optAllSitesAccess = getRequiredEl<HTMLInputElement>('optAllSitesAccess');
 
   versionBadge.textContent = `v${browser.getVersion()}`;
 
@@ -44,6 +46,8 @@ async function initOptions(): Promise<void> {
     optSkipSensitive.checked = settings.skipSensitiveFields;
     optHighlightFilled.checked = settings.highlightFilled;
     optSkipEmpty.checked = settings.skipEmptyOnRecord;
+    optIncludeIframes.checked = settings.includeIframes;
+    optAllSitesAccess.checked = await browser.hasOriginPermission(ALL_URLS_ORIGIN_PATTERN);
   }
 
   const bindSetting = (input: HTMLInputElement, key: keyof ExtensionSettings) => {
@@ -57,6 +61,24 @@ async function initOptions(): Promise<void> {
   bindSetting(optSkipSensitive, 'skipSensitiveFields');
   bindSetting(optHighlightFilled, 'highlightFilled');
   bindSetting(optSkipEmpty, 'skipEmptyOnRecord');
+  bindSetting(optIncludeIframes, 'includeIframes');
+
+  optAllSitesAccess.addEventListener('change', async () => {
+    if (optAllSitesAccess.checked) {
+      const granted = await browser.requestOriginPermission(ALL_URLS_ORIGIN_PATTERN);
+      optAllSitesAccess.checked = granted;
+      setStatus(
+        granted
+          ? 'Enabled optional cross-origin iframe & global hotkey access'
+          : 'Optional host permission was not granted',
+        granted ? 'success' : 'warn'
+      );
+    } else {
+      await browser.removeOriginPermission(ALL_URLS_ORIGIN_PATTERN);
+      optAllSitesAccess.checked = await browser.hasOriginPermission(ALL_URLS_ORIGIN_PATTERN);
+      setStatus('Revoked optional all-sites host access', 'info');
+    }
+  });
 
   async function renderSites(): Promise<void> {
     const root = await storage.load();

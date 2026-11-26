@@ -12,8 +12,9 @@ Snappy Form Filler captures the values of HTML form controls (`<input>`, `<selec
 
 - **Per-site named profiles** — Keep multiple personas per origin (e.g., `Default`, `Admin`, `QA Edge Case`) with instant switching and automatic v2.0 migration.
 - **Framework-aware filling** — Uses native `value`/`checked` prototype setters, React `_valueTracker` reset, and `input`/`change`/`blur` event dispatch with subtle highlight feedback.
-- **Smart multi-strategy matching** — Matches fields reliably across dynamic SPA IDs (`:r0:`, `mui-123`) via `id` → `name` (+ index) → `data-testid` → `aria-label` / `<label>` → `placeholder` → CSS path, including open Shadow DOM.
-- **Privacy & security by default** — Strictly minimal permissions (`activeTab`, `scripting`, `storage` — **zero** `<all_urls>` host permissions). Automatically skips passwords, credit card/CVV, OTP, CAPTCHA, and CSRF tokens unless explicitly opted in.
+- **Smart multi-strategy matching + Shadow DOM & Iframes** — Matches fields reliably across dynamic SPA IDs (`:r0:`, `mui-123`) via `id` → `name` (+ index) → `data-testid` → `aria-label` / `<label>` → `placeholder` → CSS path, including **open and closed Shadow DOM**, **same-origin iframes** (automatic), and **opt-in cross-origin iframes**.
+- **Direct shortcuts & right-click menu** — Right-click any page → _Snappy Form Filler_ to Fill/Record without opening the popup (`contextMenus`, zero host permissions), or opt in per-site in the popup (`Hotkeys: On`) for instant `Alt+Shift+F` (Fill) and `Alt+Shift+R` (Record) with toolbar badge feedback.
+- **Privacy & security by default** — Strictly minimal install permissions (`activeTab`, `scripting`, `storage`, `contextMenus` — **zero** install-time `<all_urls>` host permissions). Automatically skips passwords, credit card/CVV, OTP, CAPTCHA, and CSRF tokens unless explicitly opted in.
 - **Validated JSON Import & Export** — Supports v2.0 and v3.0 backup files with safe **Merge / Replace All / Cancel** confirmation and prototype-pollution guards.
 - **Accessible Light & Dark UI** — Keyboard shortcuts (`Alt+Shift+S` to open, `R` to Record, `F` to Fill), WCAG AA contrast, and a full-page Profile Manager & Settings tab (`options.html`).
 

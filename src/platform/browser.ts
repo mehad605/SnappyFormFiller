@@ -1,4 +1,11 @@
-import type { ActiveTabInfo, BrowserAdapter, BrowserTarget } from '../core/types';
+import { BADGE_DURATION_MS } from '../core/constants';
+import type {
+  ActiveTabInfo,
+  BrowserAdapter,
+  BrowserTarget,
+  ContextMenuItem,
+  FrameExecutionResult,
+} from '../core/types';
 
 declare const __BUILD_TARGET__: BrowserTarget | undefined;
 
@@ -8,6 +15,7 @@ interface RawTab {
 }
 
 interface RawInjectionResult<T = unknown> {
+  frameId?: number;
   result?: T;
 }
 
@@ -18,11 +26,32 @@ interface RawWebExtensionApi {
   };
   scripting?: {
     executeScript<TArgs extends unknown[], TResult>(injection: {
-      target: { tabId: number };
+      target: { tabId: number; allFrames?: boolean };
       files?: string[];
       func?: (...args: TArgs) => TResult;
       args?: TArgs;
     }): Promise<Array<RawInjectionResult<TResult>>>;
+  };
+  permissions?: {
+    contains(permissions: { origins?: string[] }): Promise<boolean>;
+    request(permissions: { origins?: string[] }): Promise<boolean>;
+    remove(permissions: { origins?: string[] }): Promise<boolean>;
+  };
+  commands?: {
+    onCommand: {
+      addListener(listener: (command: string) => void): void;
+    };
+  };
+  contextMenus?: {
+    removeAll(): Promise<void> | void;
+    create(props: { id: string; title: string; parentId?: string; contexts: string[] }): void;
+    onClicked: {
+      addListener(listener: (info: { menuItemId: string | number }, tab?: RawTab) => void): void;
+    };
+  };
+  action?: {
+    setBadgeText(details: { tabId?: number; text: string }): Promise<void> | void;
+    setBadgeBackgroundColor(details: { tabId?: number; color: string }): Promise<void> | void;
   };
   storage?: {
     local: {
@@ -74,10 +103,62 @@ function detectTarget(): BrowserTarget {
 
 /**
  * Thin, zero-dependency WebExtension platform adapter.
- * This is the ONLY module in the codebase permitted to touch `browser.*` or `chrome.*`.
+ * This is the ONLY module in the codebase permitted to touch `browser.*` or `chrome.*` APIs.
  */
 export function createBrowserAdapter(): BrowserAdapter {
   const target = detectTarget();
+
+  const executeFileAndCallFrames = async <TPayload, TResult>(
+    tabId: number,
+    scriptFile: string,
+    runnerKey: string,
+    payload: TPayload,
+    allFrames: boolean
+  ): Promise<Array<FrameExecutionResult<TResult>>> => {
+    const api = getRawApi();
+    if (!api.scripting) {
+      throw new Error('Scripting API is unavailable');
+    }
+
+    const injectionTarget = allFrames ? { tabId, allFrames: true } : { tabId };
+
+    // Step 1: Inject self-contained bundled script into the isolated world(s).
+    await api.scripting.executeScript({
+      target: injectionTarget,
+      files: [scriptFile],
+    });
+
+    // Step 2: Invoke the isolated-world runner with structured-clone args and clean up immediately.
+    const results = await api.scripting.executeScript<[string, TPayload], TResult>({
+      target: injectionTarget,
+      func: (key: string, arg: TPayload): TResult => {
+        const scope = globalThis as Record<string, unknown>;
+        const runner = scope[key];
+        delete scope[key];
+        if (typeof runner !== 'function') {
+          throw new Error(`Injected script runner "${key}" failed to initialize`);
+        }
+        return (runner as (input: TPayload) => TResult)(arg);
+      },
+      args: [runnerKey, payload],
+    });
+
+    const frames: Array<FrameExecutionResult<TResult>> = [];
+    for (const entry of results ?? []) {
+      if (entry && typeof entry.result !== 'undefined') {
+        frames.push({
+          frameId: typeof entry.frameId === 'number' ? entry.frameId : 0,
+          result: entry.result,
+        });
+      }
+    }
+
+    if (frames.length === 0) {
+      throw new Error('Script execution returned no result');
+    }
+
+    return frames.sort((a, b) => a.frameId - b.frameId);
+  };
 
   return {
     target,
@@ -106,37 +187,46 @@ export function createBrowserAdapter(): BrowserAdapter {
       runnerKey: string,
       payload: TPayload
     ): Promise<TResult> {
+      const frames = await executeFileAndCallFrames<TPayload, TResult>(
+        tabId,
+        scriptFile,
+        runnerKey,
+        payload,
+        false
+      );
+      return frames[0]!.result;
+    },
+
+    executeFileAndCallFrames,
+
+    async hasOriginPermission(originPattern: string): Promise<boolean> {
       const api = getRawApi();
-      if (!api.scripting) {
-        throw new Error('Scripting API is unavailable');
+      if (!api.permissions) return false;
+      try {
+        return Boolean(await api.permissions.contains({ origins: [originPattern] }));
+      } catch {
+        return false;
       }
+    },
 
-      // Step 1: Inject self-contained bundled script into the isolated world.
-      await api.scripting.executeScript({
-        target: { tabId },
-        files: [scriptFile],
-      });
-
-      // Step 2: Invoke the isolated-world runner with structured-clone args and clean up immediately.
-      const results = await api.scripting.executeScript<[string, TPayload], TResult>({
-        target: { tabId },
-        func: (key: string, arg: TPayload): TResult => {
-          const scope = globalThis as Record<string, unknown>;
-          const runner = scope[key];
-          delete scope[key];
-          if (typeof runner !== 'function') {
-            throw new Error(`Injected script runner "${key}" failed to initialize`);
-          }
-          return (runner as (input: TPayload) => TResult)(arg);
-        },
-        args: [runnerKey, payload],
-      });
-
-      const first = results?.[0];
-      if (!first || typeof first.result === 'undefined') {
-        throw new Error('Script execution returned no result');
+    async requestOriginPermission(originPattern: string): Promise<boolean> {
+      const api = getRawApi();
+      if (!api.permissions) return false;
+      try {
+        return Boolean(await api.permissions.request({ origins: [originPattern] }));
+      } catch {
+        return false;
       }
-      return first.result;
+    },
+
+    async removeOriginPermission(originPattern: string): Promise<boolean> {
+      const api = getRawApi();
+      if (!api.permissions) return false;
+      try {
+        return Boolean(await api.permissions.remove({ origins: [originPattern] }));
+      } catch {
+        return false;
+      }
     },
 
     async storageGet<T = unknown>(keys: string[]): Promise<Record<string, T>> {
@@ -198,6 +288,60 @@ export function createBrowserAdapter(): BrowserAdapter {
       api.runtime?.onInstalled.addListener((details) => {
         void Promise.resolve(handler(details.reason));
       });
+    },
+
+    onCommand(handler: (command: string) => Promise<void> | void): void {
+      const api = getRawApi();
+      api.commands?.onCommand.addListener((command) => {
+        void Promise.resolve(handler(command));
+      });
+    },
+
+    async registerContextMenus(items: readonly ContextMenuItem[]): Promise<void> {
+      const api = getRawApi();
+      // Firefox for Android does not expose contextMenus; degrade gracefully.
+      if (!api.contextMenus) return;
+      try {
+        await Promise.resolve(api.contextMenus.removeAll());
+        for (const item of items) {
+          api.contextMenus.create({
+            id: item.id,
+            title: item.title,
+            ...(item.parentId ? { parentId: item.parentId } : {}),
+            contexts: [...item.contexts],
+          });
+        }
+      } catch {
+        // Ignore duplicate creation races during rapid reloads.
+      }
+    },
+
+    onContextMenuClick(
+      handler: (menuItemId: string, tab: ActiveTabInfo | null) => Promise<void> | void
+    ): void {
+      const api = getRawApi();
+      if (!api.contextMenus) return;
+      api.contextMenus.onClicked.addListener((info, tab) => {
+        const activeTab: ActiveTabInfo | null =
+          tab && typeof tab.id === 'number'
+            ? { id: tab.id, url: typeof tab.url === 'string' ? tab.url : null }
+            : null;
+        void Promise.resolve(handler(String(info.menuItemId), activeTab));
+      });
+    },
+
+    async flashBadge(tabId: number, text: string, color: string): Promise<void> {
+      const api = getRawApi();
+      if (!api.action) return;
+      try {
+        await Promise.resolve(api.action.setBadgeBackgroundColor({ tabId, color }));
+        await Promise.resolve(api.action.setBadgeText({ tabId, text }));
+        globalThis.setTimeout(() => {
+          void Promise.resolve(api.action?.setBadgeText({ tabId, text: '' })).catch(() => {});
+        }, BADGE_DURATION_MS);
+      } catch {
+        // Tab may have closed before badge cleared.
+      }
     },
   };
 }

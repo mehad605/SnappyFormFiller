@@ -12,9 +12,9 @@ const BUDGETS = {
   maxZipBytes: 60 * 1024, // 60 KB compressed store package
   maxPopupJsBytes: 35 * 1024, // 35 KB minified popup bundle
   maxOptionsJsBytes: 35 * 1024, // 35 KB minified options bundle
-  maxBackgroundJsBytes: 12 * 1024, // 12 KB minified background worker
+  maxBackgroundJsBytes: 16 * 1024, // 16 KB minified background worker (handles commands + contextMenus + migration)
   maxInjectedScriptBytes: 15 * 1024, // 15 KB per injected script (record.js / fill.js)
-  allowedPermissions: ['activeTab', 'scripting', 'storage'],
+  allowedPermissions: ['activeTab', 'contextMenus', 'scripting', 'storage'],
   maxRuntimeDependencies: 0,
 };
 

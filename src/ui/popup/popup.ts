@@ -29,6 +29,7 @@ async function initPopup(): Promise<void> {
   const storage = new StorageRepository(browser);
 
   const siteInfoEl = getRequiredEl<HTMLElement>('siteInfo');
+  const hotkeyPermBtn = getRequiredEl<HTMLButtonElement>('hotkeyPermBtn');
   const openOptionsBtn = getRequiredEl<HTMLButtonElement>('openOptionsBtn');
   const primarySlot = getRequiredEl<HTMLElement>('primaryActions');
   const secondarySlot = getRequiredEl<HTMLElement>('secondaryActions');
@@ -163,6 +164,20 @@ async function initPopup(): Promise<void> {
     });
   }
 
+  async function updateHotkeyPermissionUi(): Promise<void> {
+    if (!currentOrigin) {
+      hotkeyPermBtn.classList.add('hidden');
+      return;
+    }
+    const granted = await browser.hasOriginPermission(`${currentOrigin}/*`);
+    hotkeyPermBtn.classList.remove('hidden');
+    hotkeyPermBtn.dataset['enabled'] = String(granted);
+    hotkeyPermBtn.textContent = granted ? 'Hotkeys: On' : 'Hotkeys: Off';
+    hotkeyPermBtn.title = granted
+      ? 'Direct Alt+Shift+F / Alt+Shift+R enabled for this site (click to revoke)'
+      : 'Enable direct Alt+Shift+F / Alt+Shift+R on this site without opening popup';
+  }
+
   async function refresh(updateStatus = true): Promise<void> {
     activeTab = await browser.getActiveTab();
     currentOrigin = parseSupportedOrigin(activeTab?.url);
@@ -174,6 +189,7 @@ async function initPopup(): Promise<void> {
       profileBar.render(null, [], null);
       renderFieldsForActiveProfile();
       updateActionDisabledStates();
+      await updateHotkeyPermissionUi();
       if (updateStatus) {
         setStatus(describeUnsupportedUrl(activeTab?.url), 'warn');
       }
@@ -187,6 +203,7 @@ async function initPopup(): Promise<void> {
     profileBar.render(currentOrigin, profiles, activeProfile?.id ?? null);
     renderFieldsForActiveProfile();
     updateActionDisabledStates();
+    await updateHotkeyPermissionUi();
 
     if (updateStatus) {
       const count = activeProfile?.fields.length ?? 0;
@@ -198,6 +215,30 @@ async function initPopup(): Promise<void> {
       );
     }
   }
+
+  hotkeyPermBtn.addEventListener('click', async () => {
+    if (!currentOrigin) return;
+    const pattern = `${currentOrigin}/*`;
+    const currentlyGranted = await browser.hasOriginPermission(pattern);
+    if (currentlyGranted) {
+      const removed = await browser.removeOriginPermission(pattern);
+      setStatus(
+        removed
+          ? 'Revoked direct hotkeys for this site'
+          : 'Direct hotkeys are managed by global optional permission in Settings',
+        'info'
+      );
+    } else {
+      const granted = await browser.requestOriginPermission(pattern);
+      setStatus(
+        granted
+          ? 'Direct hotkeys (Alt+Shift+F / R) enabled for this site'
+          : 'Site permission was not granted',
+        granted ? 'success' : 'warn'
+      );
+    }
+    await updateHotkeyPermissionUi();
+  });
 
   renderActionSlot(primarySlot, registry.getPopupActions('primary'));
   renderActionSlot(secondarySlot, registry.getPopupActions('secondary'));

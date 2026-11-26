@@ -73,6 +73,29 @@
               <small>Ignore blank inputs and unchecked boxes instead of recording them.</small>
             </span>
           </label>
+          <label class="setting-row">
+            <input type="checkbox" id="optIncludeIframes" />
+            <span>
+              <strong>Include embedded iframes (same-origin automatic)</strong>
+              <small
+                >Record and fill forms inside same-origin iframes (plus closed Shadow DOM).</small
+              >
+            </span>
+          </label>
+          <label class="setting-row">
+            <input type="checkbox" id="optAllSitesAccess" />
+            <span>
+              <strong
+                >Cross-origin iframes &amp; direct global hotkeys on all sites (Optional
+                permission)</strong
+              >
+              <small>
+                Requests optional host access so <code>Alt+Shift+F</code> /
+                <code>Alt+Shift+R</code> and cross-origin iframes work everywhere. Leave off to
+                grant per-site in the popup.
+              </small>
+            </span>
+          </label>
         </div>
       </section>
 

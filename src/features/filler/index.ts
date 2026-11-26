@@ -1,6 +1,6 @@
-import { RUNNER_KEY_FILL } from '../../core/constants';
 import type { StorageRepository } from '../../core/storage';
-import type { FeatureModule, FillOptions, FillResult } from '../../core/types';
+import type { FeatureModule } from '../../core/types';
+import { fillActiveTab } from './service';
 
 export function createFillerFeature(storage: StorageRepository): FeatureModule {
   return {
@@ -22,39 +22,8 @@ export function createFillerFeature(storage: StorageRepository): FeatureModule {
             return;
           }
 
-          const profile = await storage.getActiveProfile(ctx.origin);
-          if (!profile || profile.fields.length === 0) {
-            ctx.notify('No fields saved for this profile', 'warn');
-            return;
-          }
-
-          const settings = await storage.getSettings();
-          const result = await ctx.browser.executeFileAndCall<FillOptions, FillResult>(
-            ctx.activeTab.id,
-            'scripts/fill.js',
-            RUNNER_KEY_FILL,
-            {
-              fields: profile.fields,
-              highlightFilled: settings.highlightFilled,
-            }
-          );
-
-          const totalMatched = result.filledCount + result.unchangedCount;
-          if (result.unmatchedLabels.length > 0) {
-            ctx.notify(
-              `Filled ${result.filledCount}/${profile.fields.length} (${result.unmatchedLabels.length} unmatched)`,
-              'warn'
-            );
-          } else if (totalMatched === 0 && result.skippedDisabledCount > 0) {
-            ctx.notify(
-              `Skipped ${result.skippedDisabledCount} disabled/read-only field(s)`,
-              'warn'
-            );
-          } else if (result.filledCount === 0 && result.unchangedCount > 0) {
-            ctx.notify(`All ${result.unchangedCount} field(s) already up to date`, 'info');
-          } else {
-            ctx.notify(`Filled ${result.filledCount} field(s)!`, 'success');
-          }
+          const outcome = await fillActiveTab(ctx.browser, storage, ctx.activeTab.id, ctx.origin);
+          ctx.notify(outcome.message, outcome.tone);
         },
       },
     ],

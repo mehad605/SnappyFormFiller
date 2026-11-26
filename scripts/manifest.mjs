@@ -5,7 +5,9 @@ const pkg = JSON.parse(readFileSync(resolve('package.json'), 'utf8'));
 
 /**
  * Generates target-specific Manifest V3 JSON from a single source of truth.
- * Keeps permissions strictly minimal: activeTab, scripting, storage (zero host permissions).
+ * Keeps install-time permissions strictly minimal (zero install-time host permissions).
+ * Optional host access is requested only when a user explicitly opts into per-site direct hotkeys
+ * or cross-origin iframe support.
  *
  * @param {'chromium' | 'firefox'} target
  */
@@ -16,7 +18,7 @@ export function buildManifest(target) {
     version: pkg.version,
     description:
       'Record and replay form data across any website. Local-first per-site profiles with framework-aware filling.',
-    permissions: ['activeTab', 'scripting', 'storage'],
+    permissions: ['activeTab', 'scripting', 'storage', 'contextMenus'],
     icons:
       target === 'firefox'
         ? {
@@ -52,6 +54,18 @@ export function buildManifest(target) {
         },
         description: 'Open Snappy Form Filler',
       },
+      'fill-form': {
+        suggested_key: {
+          default: 'Alt+Shift+F',
+        },
+        description: 'Fill active profile on the current site',
+      },
+      'record-form': {
+        suggested_key: {
+          default: 'Alt+Shift+R',
+        },
+        description: 'Record form fields into the active profile',
+      },
     },
     content_security_policy: {
       extension_pages: "script-src 'self'; object-src 'self'; style-src 'self'",
@@ -61,6 +75,7 @@ export function buildManifest(target) {
   if (target === 'chromium') {
     return {
       ...base,
+      optional_host_permissions: ['<all_urls>'],
       minimum_chrome_version: '109',
       background: {
         service_worker: 'background.js',
@@ -72,6 +87,7 @@ export function buildManifest(target) {
   if (target === 'firefox') {
     return {
       ...base,
+      optional_permissions: ['<all_urls>'],
       background: {
         scripts: ['background.js'],
         type: 'module',

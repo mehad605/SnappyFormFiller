@@ -1,6 +1,6 @@
-import { RUNNER_KEY_RECORD } from '../../core/constants';
 import type { StorageRepository } from '../../core/storage';
-import type { FeatureModule, RecordOptions, RecordResult } from '../../core/types';
+import type { FeatureModule } from '../../core/types';
+import { recordActiveTab } from './service';
 
 export function createRecorderFeature(storage: StorageRepository): FeatureModule {
   return {
@@ -22,43 +22,18 @@ export function createRecorderFeature(storage: StorageRepository): FeatureModule
             return;
           }
 
-          const settings = await storage.getSettings();
-          const options: RecordOptions = {
-            skipPasswords: settings.skipPasswords,
-            skipSensitiveFields: settings.skipSensitiveFields,
-            skipEmptyOnRecord: settings.skipEmptyOnRecord,
-          };
-
-          const result = await ctx.browser.executeFileAndCall<RecordOptions, RecordResult>(
+          const outcome = await recordActiveTab(
+            ctx.browser,
+            storage,
             ctx.activeTab.id,
-            'scripts/record.js',
-            RUNNER_KEY_RECORD,
-            options
-          );
-
-          if (result.fields.length === 0) {
-            const extra =
-              result.skippedSensitive > 0 ? ` (${result.skippedSensitive} sensitive skipped)` : '';
-            ctx.notify(`No recordable form fields found${extra}`, 'warn');
-            return;
-          }
-
-          await storage.saveProfileFields(
             ctx.origin,
-            result.fields,
             ctx.activeProfileId ?? undefined
           );
 
-          const notes: string[] = [];
-          if (result.skippedSensitive > 0) {
-            notes.push(`${result.skippedSensitive} sensitive skipped`);
+          ctx.notify(outcome.message, outcome.tone);
+          if (outcome.tone === 'success') {
+            await ctx.refresh();
           }
-          if (result.skippedEmpty > 0) {
-            notes.push(`${result.skippedEmpty} empty skipped`);
-          }
-          const suffix = notes.length > 0 ? ` (${notes.join(', ')})` : '';
-          ctx.notify(`Recorded ${result.fields.length} field(s)${suffix}`, 'success');
-          await ctx.refresh();
         },
       },
     ],

@@ -49,6 +49,8 @@ function validateLocator(raw: unknown): FieldLocator {
     'labelText',
     'placeholder',
     'cssPath',
+    'frameOrigin',
+    'framePath',
   ] as const;
 
   for (const key of strKeys) {
