@@ -1,0 +1,45 @@
+{
+  "name": "snappy-form-filler",
+  "version": "3.0.0",
+  "description": "Record and replay form data across any website. Local-first per-site profiles with framework-aware filling for Chromium and Firefox.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "prepare": "node scripts/setup-hooks.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "dev:chromium": "node scripts/build.mjs --target=chromium --watch",
+    "dev:firefox": "node scripts/build.mjs --target=firefox --watch",
+    "build": "node scripts/build.mjs --target=all",
+    "build:chromium": "node scripts/build.mjs --target=chromium",
+    "build:firefox": "node scripts/build.mjs --target=firefox",
+    "package": "npm run build && node scripts/package.mjs",
+    "icons": "node scripts/generate-icons.mjs",
+    "lint": "eslint src scripts tests",
+    "lint:fix": "eslint --fix src scripts tests",
+    "format": "prettier --write \"src/**/*.{ts,css,html}\" \"scripts/**/*.mjs\" \"tests/**/*.{ts,mjs}\" \"docs/**/*.md\" \"*.{json,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,css,html}\" \"scripts/**/*.mjs\" \"tests/**/*.{ts,mjs}\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "npm run build && node tests/e2e/run-e2e.mjs",
+    "budgets": "npm run package && node scripts/check-budgets.mjs",
+    "check": "npm run lint && npm run typecheck && npm run format:check && npm run test && npm run budgets"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "@types/node": "^22.13.0",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.20.0",
+    "eslint-config-prettier": "^10.0.1",
+    "fflate": "^0.8.2",
+    "happy-dom": "^17.1.0",
+    "playwright-core": "^1.50.0",
+    "prettier": "^3.5.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.24.0",
+    "vitest": "^3.0.5"
+  }
+}

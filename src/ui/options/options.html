@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Snappy Form Filler — Profile Manager &amp; Settings</title>
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="page-header">
+        <div class="brand">
+          <img src="icons/icon-48.png" alt="" width="36" height="36" class="brand-icon" />
+          <div>
+            <h1>Snappy Form Filler</h1>
+            <p class="subtitle">Local-first profile manager, backup &amp; privacy settings</p>
+          </div>
+        </div>
+        <span id="versionBadge" class="version-badge">v3.0.0</span>
+      </header>
+
+      <div id="statusBar" class="status-banner" role="status" aria-live="polite">Ready</div>
+      <div id="confirmHost" class="hidden"></div>
+
+      <section class="card" id="import" aria-labelledby="portabilityHeading">
+        <h2 id="portabilityHeading">Import &amp; Export Backups</h2>
+        <p class="card-desc">
+          Export all saved site profiles as JSON, or import a v2.0 / v3.0 backup file. All data
+          stays strictly on your device in local browser storage.
+        </p>
+        <div class="toolbar">
+          <button type="button" id="exportBtn" class="btn btn-primary">Export JSON</button>
+          <button type="button" id="importBtn" class="btn btn-accent">Import JSON File</button>
+          <button type="button" id="clearAllBtn" class="btn btn-danger">Clear All Data</button>
+          <input type="file" id="importFile" class="hidden" accept=".json,application/json" />
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="settingsHeading">
+        <h2 id="settingsHeading">Recording &amp; Filling Settings</h2>
+        <div class="settings-list">
+          <label class="setting-row">
+            <input type="checkbox" id="optSkipPasswords" />
+            <span>
+              <strong>Skip password fields (Recommended)</strong>
+              <small>Never capture <code>type="password"</code> inputs in local storage.</small>
+            </span>
+          </label>
+          <label class="setting-row">
+            <input type="checkbox" id="optSkipSensitive" />
+            <span>
+              <strong>Skip payment &amp; OTP fields (Recommended)</strong>
+              <small
+                >Automatically skips credit card numbers, CVV/CVC, SSN, and 2FA/OTP codes.</small
+              >
+            </span>
+          </label>
+          <label class="setting-row">
+            <input type="checkbox" id="optHighlightFilled" />
+            <span>
+              <strong>Highlight filled fields briefly</strong>
+              <small
+                >Shows a brief emerald outline on filled fields with zero leftover DOM
+                changes.</small
+              >
+            </span>
+          </label>
+          <label class="setting-row">
+            <input type="checkbox" id="optSkipEmpty" />
+            <span>
+              <strong>Skip empty fields when recording</strong>
+              <small>Ignore blank inputs and unchecked boxes instead of recording them.</small>
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="sitesHeading">
+        <div class="sites-header">
+          <h2 id="sitesHeading">Saved Sites &amp; Profiles</h2>
+          <label for="siteSearch" class="sr-only">Filter sites or fields</label>
+          <input
+            type="search"
+            id="siteSearch"
+            class="search-input"
+            placeholder="Filter by origin, profile, or field…"
+          />
+        </div>
+        <div id="sitesContainer" class="sites-list"></div>
+      </section>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

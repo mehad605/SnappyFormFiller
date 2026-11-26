@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Snappy Form Filler</title>
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <header class="popup-header">
+        <div class="brand">
+          <img src="icons/icon-32.png" alt="" width="22" height="22" class="brand-icon" />
+          <h1>Snappy Form Filler</h1>
+        </div>
+        <button
+          type="button"
+          id="openOptionsBtn"
+          class="btn btn-neutral btn-sm"
+          aria-label="Open Profile Manager and Settings"
+        >
+          Manage
+        </button>
+      </header>
+
+      <div class="site-pill" id="siteInfo" title="Current site origin">—</div>
+
+      <section class="profile-bar" id="profileBar" aria-label="Site profiles">
+        <label for="profileSelect" class="sr-only">Active profile</label>
+        <select id="profileSelect" class="profile-select"></select>
+        <button
+          type="button"
+          id="newProfileBtn"
+          class="btn btn-neutral btn-sm"
+          title="New profile"
+          aria-label="Create new profile"
+        >
+          + New
+        </button>
+        <button
+          type="button"
+          id="renameProfileBtn"
+          class="btn btn-neutral btn-sm"
+          title="Rename profile"
+          aria-label="Rename active profile"
+        >
+          Rename
+        </button>
+        <button
+          type="button"
+          id="deleteProfileBtn"
+          class="btn btn-danger btn-sm hidden"
+          title="Delete active profile"
+          aria-label="Delete active profile"
+        >
+          Del
+        </button>
+      </section>
+
+      <form id="profileNameForm" class="inline-form hidden">
+        <label for="profileNameInput" class="sr-only">Profile name</label>
+        <input
+          type="text"
+          id="profileNameInput"
+          class="inline-input"
+          maxlength="60"
+          placeholder="Profile name (e.g. Admin)"
+          required
+        />
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        <button type="button" id="profileNameCancel" class="btn btn-neutral btn-sm">Cancel</button>
+      </form>
+
+      <section
+        class="action-slot primary-slot"
+        id="primaryActions"
+        aria-label="Primary actions"
+      ></section>
+      <section
+        class="action-slot secondary-slot"
+        id="secondaryActions"
+        aria-label="Clear actions"
+      ></section>
+      <section
+        class="action-slot utility-slot"
+        id="utilityActions"
+        aria-label="Import and export"
+      ></section>
+
+      <input type="file" id="importFile" class="hidden" accept=".json,application/json" />
+
+      <div id="confirmHost" class="hidden"></div>
+
+      <div id="statusBar" class="status-banner" role="status" aria-live="polite">Loading…</div>
+
+      <section class="field-section" aria-label="Saved form fields">
+        <div class="field-section-header">
+          <h2 class="section-title">Saved Fields</h2>
+          <span id="fieldCount" class="field-count">0</span>
+        </div>
+        <div id="fieldList" class="field-list"></div>
+      </section>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
