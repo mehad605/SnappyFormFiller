@@ -17,6 +17,16 @@ Snappy Form Filler captures the values of HTML form controls (`<input>`, `<selec
 - **Validated JSON Import & Export** — Supports v2.0 and v3.0 backup files with safe **Merge / Replace All / Cancel** confirmation and prototype-pollution guards.
 - **Accessible Light & Dark UI** — Keyboard shortcuts (`Alt+Shift+S` to open, `R` to Record, `F` to Fill), WCAG AA contrast, and a full-page Profile Manager & Settings tab (`options.html`).
 
+## Screenshots
+
+|                  Popup (Light)                   |                  Popup (Dark)                  |
+| :----------------------------------------------: | :--------------------------------------------: |
+| ![Popup Light](docs/screenshots/popup-light.png) | ![Popup Dark](docs/screenshots/popup-dark.png) |
+
+|          Profile Manager & Settings (Light)          |         Profile Manager & Settings (Dark)          |
+| :--------------------------------------------------: | :------------------------------------------------: |
+| ![Options Light](docs/screenshots/options-light.png) | ![Options Dark](docs/screenshots/options-dark.png) |
+
 ## Quick Start (4 Commands)
 
 Requires **Node.js >= 20**.
@@ -29,29 +39,30 @@ npm run build
 ```
 
 Then load the built extension in your browser:
+
 - **Chrome / Edge / Brave / Opera / Vivaldi / Arc:** Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and select `dist/chromium/`.
 - **Firefox:** Open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on…**, and select `dist/firefox/manifest.json`.
 
 ## Browser Support
 
-| Browser | Target | Status | Notes |
-| --- | --- | --- | --- |
-| Chrome, Edge, Brave, Opera, Vivaldi, Arc | `dist/chromium/` | Supported (MV3) | Service worker + popup/options file import |
-| Firefox Desktop (>= 109) | `dist/firefox/` | Supported (MV3) | Event page (`background.scripts`); popup Import opens full-page Profile Manager (`options.html#import`) because Firefox dismisses popups on OS file pickers |
-| Firefox for Android (>= 120) | `dist/firefox/` | Supported (MV3) | Includes `gecko_android` config; responsive UI; global `_execute_action` shortcut ignored gracefully on mobile |
+| Browser                                  | Target           | Status          | Notes                                                                                                                                                       |
+| ---------------------------------------- | ---------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chrome, Edge, Brave, Opera, Vivaldi, Arc | `dist/chromium/` | Supported (MV3) | Service worker + popup/options file import                                                                                                                  |
+| Firefox Desktop (>= 109)                 | `dist/firefox/`  | Supported (MV3) | Event page (`background.scripts`); popup Import opens full-page Profile Manager (`options.html#import`) because Firefox dismisses popups on OS file pickers |
+| Firefox for Android (>= 120)             | `dist/firefox/`  | Supported (MV3) | Includes `gecko_android` config; responsive UI; global `_execute_action` shortcut ignored gracefully on mobile                                              |
 
 ## Common Scripts
 
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Watch mode with sub-50ms esbuild rebuilds for Chromium & Firefox |
-| `npm run build` | Production build for `dist/chromium/` and `dist/firefox/` |
-| `npm run build:chromium` / `build:firefox` | Build a single browser target |
-| `npm run package` | Create store-ready `.zip` (Chromium) and `.xpi` (Firefox) in `artifacts/` |
-| `npm run test` | Run unit & DOM tests (Vitest + happy-dom) |
-| `npm run test:e2e` | Run real Chromium/Brave & Firefox E2E smoke tests |
-| `npm run check` | Run lint, typecheck, format check, unit tests, packaging, and size budgets |
-| `npm run icons` | Regenerate all PNG icon sizes (16–512 px) from `assets/icons/icon.svg` |
+| Command                                    | Purpose                                                                    |
+| ------------------------------------------ | -------------------------------------------------------------------------- |
+| `npm run dev`                              | Watch mode with sub-50ms esbuild rebuilds for Chromium & Firefox           |
+| `npm run build`                            | Production build for `dist/chromium/` and `dist/firefox/`                  |
+| `npm run build:chromium` / `build:firefox` | Build a single browser target                                              |
+| `npm run package`                          | Create store-ready `.zip` (Chromium) and `.xpi` (Firefox) in `artifacts/`  |
+| `npm run test`                             | Run unit & DOM tests (Vitest + happy-dom)                                  |
+| `npm run test:e2e`                         | Run real Chromium/Brave & Firefox E2E smoke tests                          |
+| `npm run check`                            | Run lint, typecheck, format check, unit tests, packaging, and size budgets |
+| `npm run icons`                            | Regenerate all PNG icon sizes (16–512 px) from `assets/icons/icon.svg`     |
 
 ## Documentation
 

@@ -226,7 +226,12 @@ async function runChromiumSmokeTest(fixtureUrl) {
                   activeProfileId: 'default',
                   profiles: [
                     { id: 'default', name: 'Default', updatedAt: Date.now(), fields },
-                    { id: 'qa', name: 'QA Edge Case', updatedAt: Date.now(), fields: fields.slice(0, 3) },
+                    {
+                      id: 'qa',
+                      name: 'QA Edge Case',
+                      updatedAt: Date.now(),
+                      fields: fields.slice(0, 3),
+                    },
                   ],
                 },
               },
@@ -239,7 +244,12 @@ async function runChromiumSmokeTest(fixtureUrl) {
       const summary = await popupPage.evaluate(async () => {
         return await chrome.runtime.sendMessage({ type: 'profiles:summary' });
       });
-      if (!summary || summary.ok !== true || summary.data.siteCount !== 1 || summary.data.profileCount !== 2) {
+      if (
+        !summary ||
+        summary.ok !== true ||
+        summary.data.siteCount !== 1 ||
+        summary.data.profileCount !== 2
+      ) {
         throw new Error(`Unexpected background summary response: ${JSON.stringify(summary)}`);
       }
 
@@ -247,20 +257,58 @@ async function runChromiumSmokeTest(fixtureUrl) {
         mkdirSync(resolve('docs/screenshots'), { recursive: true });
         await optionsPage.reload({ waitUntil: 'domcontentloaded' });
         await optionsPage.waitForSelector('.site-card');
-        await optionsPage.screenshot({ path: resolve('docs/screenshots/options-light.png'), fullPage: false });
+        await optionsPage.waitForTimeout(250);
+        await optionsPage.screenshot({
+          path: resolve('docs/screenshots/options-light.png'),
+          fullPage: false,
+        });
 
         await optionsPage.emulateMedia({ colorScheme: 'dark' });
-        await optionsPage.screenshot({ path: resolve('docs/screenshots/options-dark.png'), fullPage: false });
+        await optionsPage.waitForTimeout(250);
+        await optionsPage.screenshot({
+          path: resolve('docs/screenshots/options-dark.png'),
+          fullPage: false,
+        });
 
-        // Capture popup in both light and dark modes (focused with fixture tab)
+        // Capture popup in both light and dark modes (waiting for CSS transitions to settle)
         await popupPage.emulateMedia({ colorScheme: 'light' });
         await popupPage.reload({ waitUntil: 'domcontentloaded' });
         await popupPage.waitForSelector('#action-record');
+        await popupPage.waitForTimeout(250);
         await popupPage.screenshot({ path: resolve('docs/screenshots/popup-light.png') });
 
         await popupPage.emulateMedia({ colorScheme: 'dark' });
+        await popupPage.waitForTimeout(250);
         await popupPage.screenshot({ path: resolve('docs/screenshots/popup-dark.png') });
         console.log('Saved screenshots to docs/screenshots/');
+      }
+
+      // Enforce measurable runtime latency budgets
+      const LATENCY_BUDGETS = {
+        popupLoadMs: 500,
+        optionsLoadMs: 500,
+        recordMs: 150,
+        fillMs: 100,
+      };
+      if (popupLoadMs > LATENCY_BUDGETS.popupLoadMs) {
+        throw new Error(
+          `Popup load ${popupLoadMs.toFixed(1)}ms exceeded budget ${LATENCY_BUDGETS.popupLoadMs}ms`
+        );
+      }
+      if (optionsLoadMs > LATENCY_BUDGETS.optionsLoadMs) {
+        throw new Error(
+          `Options load ${optionsLoadMs.toFixed(1)}ms exceeded budget ${LATENCY_BUDGETS.optionsLoadMs}ms`
+        );
+      }
+      if (recordMs > LATENCY_BUDGETS.recordMs) {
+        throw new Error(
+          `Record execution ${recordMs.toFixed(1)}ms exceeded budget ${LATENCY_BUDGETS.recordMs}ms`
+        );
+      }
+      if (fillMs > LATENCY_BUDGETS.fillMs) {
+        throw new Error(
+          `Fill execution ${fillMs.toFixed(1)}ms exceeded budget ${LATENCY_BUDGETS.fillMs}ms`
+        );
       }
 
       if (consoleErrors.length > 0) {
@@ -291,10 +339,16 @@ function runFirefoxSmokeTest() {
   if (!manifest.browser_specific_settings?.gecko_android?.strict_min_version) {
     throw new Error('Firefox manifest missing gecko_android config');
   }
-  if (!Array.isArray(manifest.background?.scripts) || manifest.background.scripts[0] !== 'background.js') {
+  if (
+    !Array.isArray(manifest.background?.scripts) ||
+    manifest.background.scripts[0] !== 'background.js'
+  ) {
     throw new Error('Firefox manifest must use background.scripts for MV3 compatibility');
   }
-  if (manifest.content_security_policy?.extension_pages !== "script-src 'self'; object-src 'self'; style-src 'self'") {
+  if (
+    manifest.content_security_policy?.extension_pages !==
+    "script-src 'self'; object-src 'self'; style-src 'self'"
+  ) {
     throw new Error('Firefox manifest missing strict CSP');
   }
 
@@ -323,6 +377,12 @@ function runFirefoxSmokeTest() {
     }
   }
 
+  // Verify Firefox target compile-time flag is baked into popup.js (routes Import to options.html#import)
+  const firefoxPopupJs = readFileSync(join(firefoxDir, 'popup.js'), 'utf8');
+  if (!firefoxPopupJs.includes('"firefox"')) {
+    throw new Error('Firefox popup.js was not compiled with __BUILD_TARGET__="firefox"');
+  }
+
   // Verify packaged .xpi archive if present
   const pkg = JSON.parse(readFileSync(resolve('package.json'), 'utf8'));
   const xpiPath = resolve('artifacts', `snappy-form-filler-${pkg.version}-firefox.xpi`);
@@ -338,7 +398,9 @@ function runFirefoxSmokeTest() {
   // Verify Firefox headless binary launches cleanly
   if (existsSync('/usr/bin/firefox')) {
     const versionOut = execFileSync('/usr/bin/firefox', ['--version'], { encoding: 'utf8' }).trim();
-    console.log(`PASS | Firefox build & XPI verified (${versionOut}, MV3 gecko + gecko_android valid)`);
+    console.log(
+      `PASS | Firefox build & XPI verified (${versionOut}, MV3 gecko + gecko_android valid)`
+    );
   } else {
     console.log('PASS | Firefox build & XPI verified (manifest & archive valid)');
   }

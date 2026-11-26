@@ -33,6 +33,7 @@ npm install
 ## 3. Loading the Unpacked Extension
 
 ### Chromium (Chrome, Edge, Brave, Opera, Vivaldi, Arc)
+
 1. Run `npm run build:chromium` (or `npm run dev:chromium`).
 2. Navigate to `chrome://extensions` (or `edge://extensions` / `brave://extensions`).
 3. Toggle **Developer mode** ON (top right).
@@ -40,6 +41,7 @@ npm install
 5. After code changes, click the **Reload (↻)** icon on the extension card.
 
 ### Firefox (Desktop)
+
 1. Run `npm run build:firefox` (or `npm run dev:firefox`).
 2. Navigate to `about:debugging#/runtime/this-firefox`.
 3. Click **Load Temporary Add-on…** and select `dist/firefox/manifest.json`.
@@ -47,12 +49,12 @@ npm install
 
 ## 4. Debugging Tips
 
-| Context | Chromium | Firefox |
-| --- | --- | --- |
-| **Popup UI** | Right-click inside the open popup → **Inspect** | `about:debugging` → **Inspect** → switch iframe selector to `popup.html` (enable *Disable Popup Auto-Hide* in Toolbox `⋯` menu) |
-| **Options / Manager** | Open Manage page → right-click → **Inspect** | Open Manage page → `F12` |
-| **Background Worker** | `chrome://extensions` → click **service worker** link | `about:debugging` → click **Inspect** |
-| **Injected Scripts (`record.js` / `fill.js`)** | DevTools on the target web page → Sources → Content scripts | DevTools on the target web page → Debugger |
+| Context                                        | Chromium                                                    | Firefox                                                                                                                         |
+| ---------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Popup UI**                                   | Right-click inside the open popup → **Inspect**             | `about:debugging` → **Inspect** → switch iframe selector to `popup.html` (enable _Disable Popup Auto-Hide_ in Toolbox `⋯` menu) |
+| **Options / Manager**                          | Open Manage page → right-click → **Inspect**                | Open Manage page → `F12`                                                                                                        |
+| **Background Worker**                          | `chrome://extensions` → click **service worker** link       | `about:debugging` → click **Inspect**                                                                                           |
+| **Injected Scripts (`record.js` / `fill.js`)** | DevTools on the target web page → Sources → Content scripts | DevTools on the target web page → Debugger                                                                                      |
 
 ## 5. How to Add a New Feature (Step by Step)
 
