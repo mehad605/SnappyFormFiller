@@ -1,6 +1,7 @@
-import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { execFileSync, spawn } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { createServer as createNetServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { unzipSync } from 'fflate';
@@ -53,8 +54,18 @@ function findChromiumBinary() {
 
 function getShortTempBase() {
   const sysTmp = tmpdir();
-  // Linux Unix domain sockets fail above 108 bytes; use /tmp if TMPDIR is deeply nested.
   return sysTmp.length > 40 && existsSync('/tmp') ? '/tmp' : sysTmp;
+}
+
+async function getFreePort() {
+  return new Promise((resolvePort, reject) => {
+    const srv = createNetServer();
+    srv.once('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const port = srv.address().port;
+      srv.close(() => resolvePort(port));
+    });
+  });
 }
 
 async function startFixtureServer() {
@@ -83,10 +94,7 @@ async function runChromiumSmokeTest(fixtureUrl) {
       executablePath,
       headless: false,
       ignoreDefaultArgs: ['--disable-extensions'],
-      env: {
-        ...process.env,
-        TMPDIR: tmpBase,
-      },
+      env: { ...process.env, TMPDIR: tmpBase },
       args: [
         '--headless=new',
         `--disable-extensions-except=${extPath}`,
@@ -106,13 +114,11 @@ async function runChromiumSmokeTest(fixtureUrl) {
         throw new Error('Could not resolve Chromium extension ID from service worker');
       }
 
-      // 1. Open fixture page
       const formPage = await context.newPage();
       await formPage.goto(fixtureUrl, { waitUntil: 'domcontentloaded' });
 
-      // 2. Open Options page and verify zero console/CSP errors + default privacy settings
       const optionsPage = await context.newPage();
-      optionsPage.setViewportSize({ width: 920, height: 760 });
+      await optionsPage.setViewportSize({ width: 920, height: 920 });
       optionsPage.on('pageerror', (err) => consoleErrors.push(err.message));
       optionsPage.on('console', (msg) => {
         if (msg.type() === 'error') consoleErrors.push(msg.text());
@@ -131,8 +137,6 @@ async function runChromiumSmokeTest(fixtureUrl) {
         throw new Error('Default privacy settings were not enabled in Options UI');
       }
 
-      // 3. Inject bundled record.js & fill.js into the fixture page to measure real latency
-      //    and verify end-to-end record -> reset -> fill (including open Shadow DOM).
       const recordBundle = readFileSync(resolve(extPath, 'scripts/record.js'), 'utf8');
       const fillBundle = readFileSync(resolve(extPath, 'scripts/fill.js'), 'utf8');
 
@@ -193,7 +197,6 @@ async function runChromiumSmokeTest(fixtureUrl) {
         throw new Error(`Filled values mismatch: ${JSON.stringify(verifiedValues)}`);
       }
 
-      // 4. Persist recorded data in extension storage and open Popup UI
       const popupPage = await context.newPage();
       await popupPage.setViewportSize({ width: 380, height: 560 });
       popupPage.on('pageerror', (err) => consoleErrors.push(err.message));
@@ -209,7 +212,7 @@ async function runChromiumSmokeTest(fixtureUrl) {
       await popupPage.waitForSelector('#action-fill');
       const popupLoadMs = performance.now() - popupStart;
 
-      // Seed storage via extension API and verify background message routing + options rendering
+      const demoOrigin = 'https://app.example.com';
       await popupPage.evaluate(
         async ({ origin, fields }) => {
           await chrome.storage.local.set({
@@ -238,7 +241,7 @@ async function runChromiumSmokeTest(fixtureUrl) {
             },
           });
         },
-        { origin: new URL(fixtureUrl).origin, fields: recorded.fields }
+        { origin: demoOrigin, fields: recorded.fields }
       );
 
       const summary = await popupPage.evaluate(async () => {
@@ -255,35 +258,52 @@ async function runChromiumSmokeTest(fixtureUrl) {
 
       if (CAPTURE_SCREENSHOTS) {
         mkdirSync(resolve('docs/screenshots'), { recursive: true });
+
         await optionsPage.reload({ waitUntil: 'domcontentloaded' });
         await optionsPage.waitForSelector('.site-card');
         await optionsPage.waitForTimeout(250);
         await optionsPage.screenshot({
           path: resolve('docs/screenshots/options-light.png'),
-          fullPage: false,
+          fullPage: true,
         });
 
         await optionsPage.emulateMedia({ colorScheme: 'dark' });
         await optionsPage.waitForTimeout(250);
         await optionsPage.screenshot({
           path: resolve('docs/screenshots/options-dark.png'),
-          fullPage: false,
+          fullPage: true,
         });
 
-        // Capture popup in both light and dark modes (waiting for CSS transitions to settle)
-        await popupPage.emulateMedia({ colorScheme: 'light' });
-        await popupPage.reload({ waitUntil: 'domcontentloaded' });
-        await popupPage.waitForSelector('#action-record');
-        await popupPage.waitForTimeout(250);
-        await popupPage.screenshot({ path: resolve('docs/screenshots/popup-light.png') });
+        // Open a dedicated preview page simulating the active web tab so screenshots show the
+        // real popup populated with profiles and inline-editable fields in light & dark mode.
+        const shotPopup = await context.newPage();
+        await shotPopup.setViewportSize({ width: 380, height: 590 });
+        await shotPopup.addInitScript((origin) => {
+          const origQuery = chrome.tabs.query.bind(chrome.tabs);
+          chrome.tabs.query = async (queryInfo) => {
+            if (queryInfo && queryInfo.active && queryInfo.currentWindow) {
+              return [{ id: 1, url: `${origin}/signup` }];
+            }
+            return origQuery(queryInfo);
+          };
+        }, demoOrigin);
 
-        await popupPage.emulateMedia({ colorScheme: 'dark' });
-        await popupPage.waitForTimeout(250);
-        await popupPage.screenshot({ path: resolve('docs/screenshots/popup-dark.png') });
+        await shotPopup.emulateMedia({ colorScheme: 'light' });
+        await shotPopup.goto(`chrome-extension://${extensionId}/popup.html`, {
+          waitUntil: 'domcontentloaded',
+        });
+        await shotPopup.waitForSelector('.field-row');
+        await shotPopup.waitForTimeout(250);
+        await shotPopup.screenshot({ path: resolve('docs/screenshots/popup-light.png') });
+
+        await shotPopup.emulateMedia({ colorScheme: 'dark' });
+        await shotPopup.waitForTimeout(250);
+        await shotPopup.screenshot({ path: resolve('docs/screenshots/popup-dark.png') });
+        await shotPopup.close();
+
         console.log('Saved screenshots to docs/screenshots/');
       }
 
-      // Enforce measurable runtime latency budgets
       const LATENCY_BUDGETS = {
         popupLoadMs: 500,
         optionsLoadMs: 500,
@@ -326,7 +346,170 @@ async function runChromiumSmokeTest(fixtureUrl) {
   }
 }
 
-function runFirefoxSmokeTest() {
+async function connectBidi(wsUrl) {
+  const ws = new globalThis.WebSocket(wsUrl);
+  await new Promise((resolveOpen, reject) => {
+    ws.addEventListener('open', resolveOpen, { once: true });
+    ws.addEventListener('error', reject, { once: true });
+  });
+
+  let nextId = 1;
+  const pending = new Map();
+  ws.addEventListener('message', (event) => {
+    const msg = JSON.parse(String(event.data));
+    if (msg.id && pending.has(msg.id)) {
+      const { resolveCmd, rejectCmd } = pending.get(msg.id);
+      pending.delete(msg.id);
+      if (msg.type === 'error') {
+        rejectCmd(new Error(`${msg.error}: ${msg.message}`));
+      } else {
+        resolveCmd(msg.result);
+      }
+    }
+  });
+
+  const send = (method, params = {}) =>
+    new Promise((resolveCmd, rejectCmd) => {
+      const id = nextId++;
+      pending.set(id, { resolveCmd, rejectCmd });
+      ws.send(JSON.stringify({ id, method, params }));
+    });
+
+  return { ws, send };
+}
+
+async function runFirefoxGeckoBidiTest(firefoxDir, fixtureUrl) {
+  const port = await getFreePort();
+  const profileDir = mkdtempSync(join(getShortTempBase(), 'snappy-ff-'));
+  writeFileSync(
+    join(profileDir, 'user.js'),
+    [
+      'user_pref("remote.active-protocols", 1);',
+      'user_pref("xpinstall.signatures.required", false);',
+      'user_pref("extensions.experiments.enabled", true);',
+    ].join('\n'),
+    'utf8'
+  );
+
+  const proc = spawn(
+    '/usr/bin/firefox',
+    ['--headless', '--no-remote', '--profile', profileDir, '--remote-debugging-port', String(port)],
+    { stdio: ['ignore', 'pipe', 'pipe'] }
+  );
+
+  let stderrBuf = '';
+  proc.stderr.on('data', (chunk) => {
+    stderrBuf += chunk.toString();
+  });
+
+  try {
+    // Wait until Firefox Remote Agent prints listening URL
+    const wsUrl = await new Promise((resolveUrl, reject) => {
+      const deadline = setTimeout(
+        () => reject(new Error(`Firefox BiDi startup timed out. stderr: ${stderrBuf}`)),
+        15000
+      );
+      const check = () => {
+        const match = stderrBuf.match(/WebDriver BiDi listening on (ws:\/\/[^\s]+)/);
+        if (match) {
+          clearTimeout(deadline);
+          resolveUrl(`${match[1]}/session`);
+        }
+      };
+      proc.stderr.on('data', check);
+      proc.once('exit', (code) => {
+        clearTimeout(deadline);
+        reject(new Error(`Firefox exited early (${code}): ${stderrBuf}`));
+      });
+    });
+
+    const { ws, send } = await connectBidi(wsUrl);
+    try {
+      await send('session.new', { capabilities: {} });
+
+      // 1. Install our real unpacked dist/firefox MV3 extension into Gecko!
+      const installed = await send('webExtension.install', {
+        extensionData: { type: 'path', path: firefoxDir },
+      });
+      if (!installed?.extension) {
+        throw new Error(`Firefox webExtension.install failed: ${JSON.stringify(installed)}`);
+      }
+
+      // 2. Navigate a real Gecko browsing context to our test form fixture
+      const tree = await send('browsingContext.getTree', {});
+      const contextId = tree.contexts[0].context;
+      await send('browsingContext.navigate', {
+        context: contextId,
+        url: fixtureUrl,
+        wait: 'complete',
+      });
+
+      // 3. Execute our real dist/firefox/scripts/record.js & fill.js inside Gecko!
+      const recordBundle = readFileSync(join(firefoxDir, 'scripts/record.js'), 'utf8');
+      const fillBundle = readFileSync(join(firefoxDir, 'scripts/fill.js'), 'utf8');
+
+      const recordEval = await send('script.evaluate', {
+        expression: `(() => {
+          ${recordBundle}
+          const fn = globalThis.__snappyFormFillerRecordRunner;
+          delete globalThis.__snappyFormFillerRecordRunner;
+          return JSON.stringify(fn({ skipPasswords: true, skipSensitiveFields: true, skipEmptyOnRecord: false }));
+        })()`,
+        target: { context: contextId },
+        awaitPromise: false,
+      });
+
+      const recorded = JSON.parse(recordEval.result.value);
+      if (recorded.fields.length !== 6 || recorded.skippedSensitive !== 1) {
+        throw new Error(`Gecko record mismatch: ${JSON.stringify(recorded)}`);
+      }
+
+      const fillEval = await send('script.evaluate', {
+        expression: `(() => {
+          document.getElementById('fullName').value = '';
+          document.getElementById('email').value = '';
+          document.getElementById('notes').value = '';
+          document.getElementById('role').value = 'dev';
+          document.getElementById('agree').checked = false;
+          document.getElementById('shadow-host').shadowRoot.querySelector('input').value = '';
+          ${fillBundle}
+          const fn = globalThis.__snappyFormFillerFillRunner;
+          delete globalThis.__snappyFormFillerFillRunner;
+          const res = fn({ fields: ${JSON.stringify(recorded.fields)}, highlightFilled: true });
+          return JSON.stringify({
+            res,
+            fullName: document.getElementById('fullName').value,
+            agree: document.getElementById('agree').checked,
+            shadowCity: document.getElementById('shadow-host').shadowRoot.querySelector('input').value,
+          });
+        })()`,
+        target: { context: contextId },
+        awaitPromise: false,
+      });
+
+      const geckoFilled = JSON.parse(fillEval.result.value);
+      if (
+        geckoFilled.res.filledCount !== 6 ||
+        geckoFilled.res.unmatchedLabels.length !== 0 ||
+        geckoFilled.fullName !== 'Ada Lovelace' ||
+        geckoFilled.agree !== true ||
+        geckoFilled.shadowCity !== 'London'
+      ) {
+        throw new Error(`Gecko fill mismatch: ${JSON.stringify(geckoFilled)}`);
+      }
+
+      return installed.extension;
+    } finally {
+      ws.close();
+    }
+  } finally {
+    proc.kill('SIGTERM');
+    await new Promise((r) => setTimeout(r, 300));
+    rmSync(profileDir, { recursive: true, force: true });
+  }
+}
+
+async function runFirefoxSmokeTest(fixtureUrl) {
   const firefoxDir = resolve('dist/firefox');
   const manifest = JSON.parse(readFileSync(join(firefoxDir, 'manifest.json'), 'utf8'));
 
@@ -377,13 +560,11 @@ function runFirefoxSmokeTest() {
     }
   }
 
-  // Verify Firefox target compile-time flag is baked into popup.js (routes Import to options.html#import)
   const firefoxPopupJs = readFileSync(join(firefoxDir, 'popup.js'), 'utf8');
   if (!firefoxPopupJs.includes('"firefox"')) {
     throw new Error('Firefox popup.js was not compiled with __BUILD_TARGET__="firefox"');
   }
 
-  // Verify packaged .xpi archive if present
   const pkg = JSON.parse(readFileSync(resolve('package.json'), 'utf8'));
   const xpiPath = resolve('artifacts', `snappy-form-filler-${pkg.version}-firefox.xpi`);
   if (existsSync(xpiPath)) {
@@ -395,11 +576,11 @@ function runFirefoxSmokeTest() {
     }
   }
 
-  // Verify Firefox headless binary launches cleanly
   if (existsSync('/usr/bin/firefox')) {
     const versionOut = execFileSync('/usr/bin/firefox', ['--version'], { encoding: 'utf8' }).trim();
+    const installedId = await runFirefoxGeckoBidiTest(firefoxDir, fixtureUrl);
     console.log(
-      `PASS | Firefox build & XPI verified (${versionOut}, MV3 gecko + gecko_android valid)`
+      `PASS | Firefox (${versionOut}) live Gecko BiDi smoke test: installed ${installedId}, record & fill (incl. Shadow DOM) passed`
     );
   } else {
     console.log('PASS | Firefox build & XPI verified (manifest & archive valid)');
@@ -410,7 +591,7 @@ async function main() {
   const { server, url } = await startFixtureServer();
   try {
     await runChromiumSmokeTest(url);
-    runFirefoxSmokeTest();
+    await runFirefoxSmokeTest(url);
   } finally {
     server.close();
   }
